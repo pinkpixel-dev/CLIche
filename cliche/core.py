@@ -19,7 +19,7 @@ from .providers.deepseek import DeepSeekProvider
 from .providers.openrouter import OpenRouterProvider
 
 class Config:
-    def __init__(self):
+    def __init__(self, config_path=None):
         self.config_dir = Path.home() / ".config" / "cliche"
         self.config_file = self.config_dir / "config.json"
         self.config = self._load_config()
@@ -112,16 +112,32 @@ class LLMProvider(str, Enum):
 
 def get_llm():
     """Get the configured LLM provider."""
-    cliche = CLIche()
+    cliche = get_cliche_instance()
     return cliche.provider
 
 class CLIche:
     def __init__(self, config_path=None):
-        """Initialize CLIche with config."""
+        """Initialize CLIche with configuration"""
         self.logger = logging.getLogger(__name__)
-        self.config = Config()
         
-        # Load the provider
+        # Load configuration
+        self.config = Config(config_path)
+        self.config_dir = self.config.config_dir
+        
+        # Initialize memory system
+        try:
+            from .memory import CLIcheMemory
+            self.memory = CLIcheMemory(self.config)
+            self.logger.info("Memory system initialized")
+        except Exception as e:
+            self.logger.error(f"Failed to initialize memory system: {str(e)}")
+            self.memory = None
+        
+        # Initialize LLM provider
+        self.provider = self._initialize_provider()
+        
+    def _initialize_provider(self):
+        """Initialize the LLM provider."""
         provider_name = self.config.config.get("provider", "ollama")
         
         # Get the provider class (loaded on demand)
@@ -129,37 +145,60 @@ class CLIche:
         
         if provider_class:
             try:
-                self.provider = provider_class(self.config)
-                self.logger.info(f"Initialized provider: {provider_name}")
+                return provider_class(self.config)
             except Exception as e:
                 self.logger.error(f"Failed to initialize provider {provider_name}: {str(e)}")
-                self.provider = None
+                return None
         else:
             self.logger.error(f"Provider {provider_name} not available")
-            self.provider = None
-
-    def _should_include_system_info(self, query: str) -> bool:
-        """Determine if system information should be included based on query content."""
-        system_keywords = [
-            "system", "os", "platform", "hardware", "cpu", "memory",
-            "ram", "disk", "storage", "network", "gpu", "processor"
-        ]
-        query_lower = query.lower()
-        return any(keyword in query_lower for keyword in system_keywords)
-
-    def ask_llm(self, query: str):
-        """Ask the LLM a question.
+            return None
+            
+    async def ask_llm(self, message, system_prompt=None, include_sys_info=False, professional_mode=False):
+        """Ask the LLM a question and get a response"""
+        if not self.provider:
+            return "Error: LLM provider not initialized. Please check your configuration."
         
-        Args:
-            query: The question to ask
-        """
-        return self.provider.generate_response(query)
+        try:
+            return await self.provider.ask(message, system_prompt, include_sys_info, professional_mode)
+        except Exception as e:
+            self.logger.error(f"Error asking LLM: {str(e)}")
+            return f"Error: {str(e)}"
+    
+    async def ask_with_memory(self, message, system_prompt=None, include_sys_info=False, professional_mode=False):
+        """Ask the LLM a question with memory context"""
+        if not self.provider:
+            return "Error: LLM provider not initialized. Please check your configuration."
+        
+        if not self.memory or not self.memory.enabled:
+            return await self.ask_llm(message, system_prompt, include_sys_info, professional_mode)
+        
+        try:
+            # Enhance message with relevant memories
+            enhanced_message = self.memory.enhance_with_memories(message)
+            
+            # Get response from LLM
+            response = await self.provider.ask(enhanced_message, system_prompt, include_sys_info, professional_mode)
+            
+            return response
+        except Exception as e:
+            self.logger.error(f"Error asking LLM with memory: {str(e)}")
+            return f"Error: {str(e)}"
 
 # Create the main CLI group
 @click.group()
 def cli():
     """CLIche: Your terminal's snarky genius assistant"""
     pass
+
+# Singleton instance of CLIche
+_cliche_instance = None
+
+def get_cliche_instance():
+    """Get the singleton instance of CLIche"""
+    global _cliche_instance
+    if _cliche_instance is None:
+        _cliche_instance = CLIche()
+    return _cliche_instance
 
 # Register commands
 def register_all_commands():

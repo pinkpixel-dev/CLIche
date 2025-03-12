@@ -21,6 +21,14 @@ All notable changes to the CLIche project will be documented in this file.
   - Added command options for width, height, and output file
   - Provided interface for copy/paste operations and selections
   - Added canvas resizing capabilities through command line and keyboard shortcuts
+- 📝 Enhanced document generation in research and scrape commands:
+  - Increased source character usage from 5,000 to 100,000 chars per source
+  - Added improved prompt guidelines to preserve technical details and code examples
+  - Enhanced section generation with 2,000-3,000 word targets for comprehensive coverage
+  - Implemented terminal-friendly output mode with concise summaries (800-1000 words)
+  - Added clear separation between terminal output and file output modes
+  - Improved content preservation to maintain the depth and complexity of original sources
+  - Added fallback mechanism for terminal output if summary generation fails
 - 🔍 Enhanced web scraping capabilities in the `scrape` command:
   - Added `--max-pages` parameter to control the total number of pages scraped
   - Improved crawler configuration for proper multi-page content extraction
@@ -43,14 +51,6 @@ All notable changes to the CLIche project will be documented in this file.
   - Added utility helpers for easy implementation in other commands
   - Improved command-line usability and flexibility
   - Updated documentation with usage examples
-- 🔍 Enhanced web scraping capabilities in the `scrape` command:
-  - Added `--max-pages` parameter to control the total number of pages scraped
-  - Improved crawler configuration for proper multi-page content extraction
-  - Enhanced content extraction algorithm to prioritize larger, more relevant chunks
-  - Better debug output with detailed information about the scraping process
-  - Fixed issues with depth-based link following and content accumulation
-  - Implemented scaled content limits based on depth (100,000 chars × depth)
-  - Added clear console messages about crawler settings and content extraction
 
 ### Changed
 - Refactored general extractor to use direct browser rendering

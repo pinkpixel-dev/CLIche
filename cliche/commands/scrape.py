@@ -2,7 +2,6 @@
 Web scraping command for CLIche.
 Enables scraping of a single URL.
 """
-
 import os
 import json
 import asyncio
@@ -14,26 +13,47 @@ from rich.console import Console
 from ..core import cli, CLIche, get_llm
 from ..utils.file import save_text_to_file, get_docs_dir, get_unique_filename
 from ..utils.unsplash import UnsplashAPI, format_image_for_markdown, format_image_for_html, get_photo_credit
-from cliche.utils.markdown_cleaner import clean_markdown_document
 
 # Initialize console for rich output
 console = Console()
 
+# Check if search packages are available
+try:
+    from duckduckgo_search import DDGS
+    DDGS_AVAILABLE = True
+except ImportError:
+    DDGS = None
+    DDGS_AVAILABLE = False
+
 # Check if the web crawler package is available
 try:
-    from crawl4ai import AsyncWebCrawler, CrawlerRunConfig
+    from crawl4ai import AsyncWebCrawler
     
     # Inspect the methods available in AsyncWebCrawler
     # This will help us determine the correct method to use
     CRAWLER_METHODS = [method for method in dir(AsyncWebCrawler) 
                       if not method.startswith('_') and callable(getattr(AsyncWebCrawler, method, None))]
+    
+    try:
+        # Try to import CrawlerRunConfig - it might have different name in different versions
+        from crawl4ai import CrawlerRunConfig
+    except ImportError:
+        # Fallback to a simple config class if not available
+        class CrawlerRunConfig:
+            def __init__(self, **kwargs):
+                for key, value in kwargs.items():
+                    setattr(self, key, value)
 except ImportError:
     AsyncWebCrawler = None
-    class CrawlerRunConfig:
-        def __init__(self, **kwargs):
-            for key, value in kwargs.items():
-                setattr(self, key, value)
     CRAWLER_METHODS = []
+
+# Check if requests is available for Brave Search API
+try:
+    import requests
+    import json
+    BRAVE_SEARCH_AVAILABLE = True
+except ImportError:
+    BRAVE_SEARCH_AVAILABLE = False
 
 # Check if requests package is available (for fallback scraping)
 try:
@@ -42,84 +62,156 @@ try:
 except ImportError:
     FALLBACK_SCRAPER_AVAILABLE = False
 
-async def async_scrape(url, topic=None, depth=1, max_pages=3, no_llm=False,
-                      include_images=False, max_images=10, min_image_size=100, image_dir=None, debug=False):
-    """Scrape structured data from a site based on a topic with multi-page support."""
-    # Set environment variable for LLM usage
-    if no_llm:
-        os.environ["CLICHE_NO_LLM"] = "1"
-        click.echo("🔍 LLM extraction disabled, using BeautifulSoup extraction only")
+def perform_search(query, num_results=5, search_engine='auto'):
+    """Perform a search and return the top results.
+    
+    Args:
+        query: Search query string
+        num_results: Maximum number of results to return
+        search_engine: Which search engine to use ('auto', 'duckduckgo', or 'brave')
+        
+    Will try multiple search providers based on the search_engine parameter.
+    - 'auto': Try all available providers in sequence
+    - 'duckduckgo': Only use DuckDuckGo 
+    - 'brave': Only use Brave Search
+    """
+    results = []
+    
+    # Try DuckDuckGo first if auto or duckduckgo explicitly requested
+    if DDGS_AVAILABLE and search_engine in ['auto', 'duckduckgo']:
+        try:
+            console.print("🔍 Searching with DuckDuckGo...")
+            with DDGS() as ddgs:
+                for r in ddgs.text(query, max_results=num_results):
+                    # Ensure we have a valid URL and title
+                    url = r.get('href', '')
+                    title = r.get('title', '')
+                    
+                    if not url or not title:
+                        continue
+                        
+                    results.append({
+                        'link': url,
+                        'title': title,
+                        'snippet': r.get('body', '')
+                    })
+            
+            if results:
+                console.print(f"✅ Found {len(results)} results with DuckDuckGo")
+                return results
+            else:
+                console.print("⚠️ No results found with DuckDuckGo. Trying alternative...")
+        except Exception as e:
+            ddg_error = str(e)
+            console.print(f"⚠️ DuckDuckGo search error: {ddg_error}")
+            
+            # Don't fall through to fallback if it's not a rate limit
+            if not ("ratelimit" in ddg_error.lower() or "rate limit" in ddg_error.lower()):
+                console.print("⚠️ Trying alternative search provider...")
     else:
-        if "CLICHE_NO_LLM" in os.environ:
-            del os.environ["CLICHE_NO_LLM"]
-
-    console.print(f"🕸️ Scraping {url}")
-    console.print(f"⚙️ Settings: depth={depth}, max_pages={max_pages}")
-    if debug:
-        if depth > 1:
-            console.print(f"🔍 Following links {depth} levels deep, max {max_pages} pages total")
-            console.print(f"📄 Content limit: {100000 * depth:,} characters total")
-            console.print(f"📌 Crawler will stay within {url}'s domain")
-        else:
-            console.print(f"🔍 Scraping single URL (no link following)")
-            console.print(f"📄 Content limit: 100,000 characters")
-
-    if include_images:
-        click.echo(f"🖼️ Image extraction enabled: max={max_images}, min_size={min_image_size}px")
-        if image_dir:
-            click.echo(f"📂 Custom image directory: {image_dir}")
-        else:
-            click.echo(f"📂 Default image directory: ~/cliche/files/images/scraped")
-
-    # Adjusted crawler configuration for single-site scraping
-    crawler_config = CrawlerRunConfig(
-        page_timeout=30000,
-        wait_until='load',
-        scan_full_page=True,
-        word_count_threshold=100
-    )
+        console.print("⚠️ DuckDuckGo search package not installed. Trying alternative...")
     
-    # Configure depth-related parameters correctly
-    if depth > 1:
-        # Set attributes individually rather than during initialization
-        # to avoid errors if certain attributes aren't supported by the crawler
-        crawler_config.same_domain_only = True
-        crawler_config.max_pages = max_pages
-        crawler_config.max_links = depth
-        
-        # Enable follow_links if depth > 1
-        # This attribute might not be supported in all versions of crawl4ai
-        # so we set it via setattr which will succeed regardless
-        setattr(crawler_config, 'follow_links', True)
-        
-        if debug:
-            console.print(f"📊 Crawler Config: following links to depth {depth}, max {max_pages} pages")
-    elif debug:
-        console.print(f"📊 Crawler Config: single page mode (no link following)")
+    # Try Brave Search API if auto or brave explicitly requested
+    if search_engine in ['auto', 'brave']:
+        brave_results = brave_search(query, num_results)
+        if brave_results:
+            console.print(f"✅ Found {len(brave_results)} results with Brave Search")
+            results.extend(brave_results)
+            return results
     
-    # Normalize base URL
-    if not url.startswith('http'):
-        url = 'https://' + url
-
-    try:
-        async with AsyncWebCrawler() as crawler:
-            try:
-                # Extract content using crawler with the config
-                extracted_text = await extract_content_with_crawler(crawler, url, crawler_config, debug)
-                if extracted_text:
-                    click.echo(f"✅ Content extracted: {len(extracted_text)} chars")
-                    # Processing extracted text...
-                else:
-                    click.echo("❌ No content extracted with primary crawler, trying fallback...")
-                    extracted_text = await fallback_scrape(url, debug)
-            except Exception as e:
-                click.echo(f"⚠️ Error during crawling: {str(e)}")
-                extracted_text = await fallback_scrape(url, debug)
-    except Exception as e:
-        click.echo(f"⚠️ Error initializing crawler: {str(e)}")
-        extracted_text = await fallback_scrape(url, debug)
-
-    return extracted_text
+    # If only brave was requested but it failed, log specific message
+    if search_engine == 'brave' and not results:
+        console.print("❌ Brave Search failed to return results. Check your API key or try another search engine.")
+    
+    # If we got here, both search providers failed or returned no results
+    if not results:
+        console.print("⚠️ All search providers failed. Using fallback test data.")
+        
+        # Create mock search results for testing
+        fallback_results = []
+        
+        # Add some common websites based on the query term
+        query_terms = query.lower().split()
+        
+        # Python-related queries
+        if any(term in query_terms for term in ["python", "programming", "code", "developer"]):
+            fallback_results.extend([
+                {
+                    'link': 'https://docs.python.org/3/tutorial/index.html',
+                    'title': 'The Python Tutorial',
+                    'snippet': 'Python is an easy to learn, powerful programming language...'
+                },
+                {
+                    'link': 'https://realpython.com/tutorials/advanced/',
+                    'title': 'Advanced Python Tutorials – Real Python',
+                    'snippet': 'Advanced Python tutorials to help you level up your Python skills...'
+                },
+                {
+                    'link': 'https://www.geeksforgeeks.org/python-programming-language/',
+                    'title': 'Python Programming Language - GeeksforGeeks',
+                    'snippet': 'Python is a high-level, general-purpose and very popular programming language...'
+                }
+            ])
+        
+        # Quantum computing related queries
+        if any(term in query_terms for term in ["quantum", "computing", "physics"]):
+            fallback_results.extend([
+                {
+                    'link': 'https://www.ibm.com/quantum/what-is-quantum-computing',
+                    'title': 'What is quantum computing? | IBM',
+                    'snippet': 'Quantum computing harnesses quantum mechanical phenomena to create powerful quantum computers...'
+                },
+                {
+                    'link': 'https://en.wikipedia.org/wiki/Quantum_computing',
+                    'title': 'Quantum computing - Wikipedia',
+                    'snippet': 'Quantum computing is a type of computation whose operations can harness the phenomena of quantum mechanics...'
+                },
+                {
+                    'link': 'https://aws.amazon.com/what-is/quantum-computing/',
+                    'title': 'What is Quantum Computing? - AWS',
+                    'snippet': 'Quantum computing is an area of computer science that uses quantum mechanics principles...'
+                }
+            ])
+        
+        # AI and Machine Learning
+        if any(term in query_terms for term in ["ai", "ml", "artificial", "intelligence", "machine", "learning"]):
+            fallback_results.extend([
+                {
+                    'link': 'https://www.ibm.com/topics/artificial-intelligence',
+                    'title': 'What is Artificial Intelligence (AI)? | IBM',
+                    'snippet': 'Artificial intelligence is a field of computer science dedicated to solving cognitive problems...'
+                },
+                {
+                    'link': 'https://en.wikipedia.org/wiki/Machine_learning',
+                    'title': 'Machine learning - Wikipedia',
+                    'snippet': 'Machine learning is a field of study in artificial intelligence concerned with the development...'
+                },
+                {
+                    'link': 'https://www.coursera.org/specializations/machine-learning-introduction',
+                    'title': 'Machine Learning Specialization - Coursera',
+                    'snippet': 'The Machine Learning Specialization is a foundational online program created in collaboration...'
+                }
+            ])
+        
+        # General technology fallback if nothing specific matches
+        if not fallback_results:
+            fallback_results.extend([
+                {
+                    'link': 'https://en.wikipedia.org/wiki/' + query.replace(' ', '_'),
+                    'title': query + ' - Wikipedia',
+                    'snippet': 'Overview and introduction to ' + query + ' including history, applications, and current developments...'
+                },
+                {
+                    'link': 'https://www.investopedia.com/terms/' + query.replace(' ', '-').lower(),
+                    'title': 'What Is ' + query + '? Definition and Examples',
+                    'snippet': query + ' refers to technology, methods, and practices used in various domains...'
+                }
+            ])
+        
+        # Limit results to num_results
+        return fallback_results[:num_results]
+    
+    return results
 
 def extract_text_from_html(html_content):
     """Simple fallback function to extract text from HTML."""
@@ -196,10 +288,7 @@ async def extract_content_with_crawler(crawler, url, config, debug=False):
             if debug:
                 click.echo(f"  arun() returned type: {type(content)}")
                 if content:
-                    if isinstance(content, list):
-                        click.echo(f"  Multi-page result with {len(content)} pages")
-                    else:
-                        click.echo(f"  Content sample: {str(content)[:100]}...")
+                    click.echo(f"  Content sample: {str(content)[:100]}...")
         except Exception as e:
             if debug:
                 click.echo(f"  arun() method failed: {str(e)}")
@@ -226,89 +315,46 @@ async def extract_content_with_crawler(crawler, url, config, debug=False):
             if debug:
                 click.echo(f"  aprocess_html() method failed: {str(e)}")
     
-    # Process content depending on type
+    # Try to extract text from content object
     if content is not None:
-        max_chars = 100000 * max(1, getattr(config, 'max_links', 1))  # Scale with depth
-        
-        # Handle list of pages (multi-page crawl results)
-        if isinstance(content, list):
-            all_text = ""
-            count = 0
-            
-            if debug:
-                click.echo(f"  Processing {len(content)} pages, max chars: {max_chars}")
-                
-            for i, page_content in enumerate(content):
-                page_text = extract_text_from_page_content(page_content, debug)
-                if page_text:
-                    # Add a page separator for better readability
-                    if all_text:
-                        all_text += "\n\n---\n\n"
-                    all_text += page_text
-                    count += 1
-                    
+        # Try various attributes that might contain text
+        for attr in ['text', 'cleaned_text', 'content', 'cleaned_html', 'html']:
+            if hasattr(content, attr):
+                text_value = getattr(content, attr)
+                if text_value and isinstance(text_value, str) and len(text_value) > 100000:
+                    extracted_text = text_value[:100000]  # Limit content size
                     if debug:
-                        click.echo(f"  Added page {i+1}: {len(page_text)} chars")
-                        
-                    # Stop if we've reached the max character limit
-                    if len(all_text) >= max_chars:
-                        if debug:
-                            click.echo(f"  Reached character limit ({max_chars}), stopping")
-                        break
-            
-            if all_text:
-                extracted_text = all_text[:max_chars]
-                if debug:
-                    click.echo(f"  Extracted text from {count} pages: {len(extracted_text)} chars (limit: {max_chars})")
-        else:
-            # Single page content
-            extracted_text = extract_text_from_page_content(content, debug)
-            
-            # If no text could be extracted, try direct string content
-            if extracted_text is None and isinstance(content, str):
+                        click.echo(f"  Found text in content.{attr}: {len(extracted_text)} chars")
+                    break
+    
+    # If no text found, try using content directly if it's a string
+    if extracted_text is None and content is not None and isinstance(content, str):
+        try:
+            if len(content) > 100000:
                 if '<html' in content.lower():
-                    extracted_text = extract_text_from_html(content)
+                    extracted_text = extract_text_from_html(content)[:100000]
                 else:
-                    extracted_text = content
-                
-                if extracted_text and len(extracted_text) > max_chars:
-                    extracted_text = extracted_text[:max_chars]
-                
-                if debug and extracted_text:
-                    click.echo(f"  Extracted text directly from content string: {len(extracted_text)} chars")
+                    extracted_text = content[:100000]  # Use directly if it's already plain text
+                if debug:
+                    click.echo(f"  Extracted {len(extracted_text)} chars from content string")
+        except Exception as e:
+            if debug:
+                click.echo(f"  Error extracting text from content string: {str(e)}")
     
-    return extracted_text
-
-def extract_text_from_page_content(content, debug=False):
-    """Extract text from a page content object."""
-    extracted_text = None
-    max_length = 0
+    # If content is a dictionary, check for common keys that might contain text
+    if extracted_text is None and content is not None and isinstance(content, dict):
+        for key in ['content', 'text', 'body', 'main', 'article']:
+            if key in content and isinstance(content[key], str) and len(content[key]) > 100000:
+                extracted_text = content[key][:100000]
+                if debug:
+                    click.echo(f"  Found text in content['{key}']: {len(extracted_text)} chars")
+                break
     
-    # Try various attributes that might contain text, prioritizing larger content
-    for attr in ['html', 'text', 'content', 'cleaned_html', 'cleaned_text']:
-        if hasattr(content, attr):
-            text_value = getattr(content, attr)
-            if text_value and isinstance(text_value, str) and len(text_value) > 0:
-                # Keep track of the longest content found
-                if len(text_value) > max_length:
-                    max_length = len(text_value)
-                    extracted_text = text_value
-                    if debug:
-                        click.echo(f"  Found text in content.{attr}: {len(text_value)} chars")
-    
-    # Apply a reasonable limit similar to research.py
-    if extracted_text and len(extracted_text) > 100000:
-        if debug:
-            click.echo(f"  Limiting content from {len(extracted_text)} to 100000 chars")
-        extracted_text = extracted_text[:100000]
-                
     return extracted_text
 
 @cli.command()
-@click.argument("url")
-@click.option("--topic", "-t", help="Topic of the scrape")
-@click.option("--depth", "-d", type=int, default=3, help="Depth of the scrape")
-@click.option("--max-pages", "-m", type=int, default=3, help="Maximum number of pages to crawl")
+@click.argument("query", nargs=-1)
+@click.option("--depth", "-d", type=int, default=3, help="Number of search results to analyze")
 @click.option("--debug", is_flag=True, help="Enable debug mode with detailed error messages")
 @click.option("--fallback-only", is_flag=True, help="Skip primary crawler and use only the fallback scraper")
 @click.option("--write", "-w", is_flag=True, help="Generate a document instead of terminal output")
@@ -322,32 +368,32 @@ def extract_text_from_page_content(content, debug=False):
               help='Search engine to use (auto tries all available)')
 @click.option("--summarize", is_flag=True, help="Generate a concise summary document instead of a comprehensive one")
 @click.option("--snippet", is_flag=True, help="Generate a very brief snippet/overview (few paragraphs)")
-
-def scrape(url, topic=None, depth=3, max_pages=3, debug=False, fallback_only=False, write=False, format='markdown', 
-           filename=None, image=None, image_count=3, image_width=800, search_engine='auto', 
-           summarize=False, snippet=False):
-    """
-    Scrape content from a single website and generate a structured document.
-    """
-
-    # Run async_scrape to get the data first
-    loop = asyncio.get_event_loop()
-    scraped_data = loop.run_until_complete(
-        async_scrape(
-            url=url,
-            topic=topic,
-            depth=depth,
-            max_pages=max_pages,
-            no_llm=fallback_only,
-            include_images=bool(image),
-            max_images=image_count,
-            min_image_size=100,  # Default or configurable
-            image_dir=None,  # Default or configurable
-            debug=debug
-        )
-    )
+def research(query, depth, debug, fallback_only, write, format, filename, 
+             image, image_count, image_width, search_engine, summarize, snippet):
+    """Research a topic online and generate a response or document.
     
-    console.print(f"[bold]Scraping... {url}:[/bold]")
+    Research uses web search and content extraction to provide up-to-date information
+    on any topic. The results are processed by an AI to create a comprehensive
+    response or document.
+    
+    Examples:
+      cliche research "Latest developments in quantum computing"
+      cliche research "Python async programming best practices" -d 5
+      cliche research "Climate change impacts" --write --format markdown
+      cliche research "Mars exploration" -w -f markdown --image "mars rover" --image-count 2
+      cliche research "Artificial intelligence" --write --summarize
+      cliche research "Quantum physics" --snippet
+    """
+    
+    # Join query parts
+    query_str = ' '.join(query)
+    
+    if not query_str:
+        console.print("[bold red]Please provide a search query.[/bold red]")
+        console.print("Example: cliche research \"Latest developments in quantum computing\"")
+        return
+    
+    console.print(f"[bold]Researching:[/bold] {query_str}")
     
     # Initialize image data dictionary
     image_data = {"images": [], "credits": []}
@@ -390,6 +436,10 @@ def scrape(url, topic=None, depth=3, max_pages=3, debug=False, fallback_only=Fal
             console.print("Continuing without images...")
     
     # Check if required packages are installed
+    if DDGS is None:
+        click.echo("❌ DuckDuckGo search package not installed. Run: pip install duckduckgo-search")
+        return
+        
     if AsyncWebCrawler is None and not FALLBACK_SCRAPER_AVAILABLE:
         click.echo("❌ No web scrapers available. Run: pip install crawl4ai beautifulsoup4")
         return
@@ -406,13 +456,20 @@ def scrape(url, topic=None, depth=3, max_pages=3, debug=False, fallback_only=Fal
         if write:
             click.echo(f"Document generation enabled with format: {format}")
         
-    # Use topic as query_str if provided, otherwise use the URL
-    query_str = topic if topic else url
+    console.print(f"🔍 Researching: {query_str}...")
+
+    # Perform a web search with the specified search engine
+    search_results = perform_search(query_str, num_results=depth, search_engine=search_engine)
+
+    if not search_results:
+        click.echo("❌ No search results found.")
+        return
     
-    # Initialize variable to store extracted data
+    # Select top N results
+    selected_results = search_results[:depth]
+    
     extracted_data = []
     
-    # Function to actually scrape the site
     async def scrape_and_extract():
         # Only use crawler if available and not in fallback-only mode
         use_crawler = AsyncWebCrawler is not None and not fallback_only
@@ -420,83 +477,74 @@ def scrape(url, topic=None, depth=3, max_pages=3, debug=False, fallback_only=Fal
         if use_crawler:
             try:
                 async with AsyncWebCrawler() as crawler:
-                    # Process the single URL directly
-                    try:
-                        console.print(f"🌐 Scraping: {url}")
+                    for result in selected_results:
+                        url = result['link']
+                        title = result['title']
                         
-                        # Create crawler config
-                        config = CrawlerRunConfig(
-                            page_timeout=30000,
-                            wait_until='load',
-                            scan_full_page=True,
-                            word_count_threshold=100
-                        )
+                        if not url:
+                            continue
                         
-                        # Configure depth-related parameters correctly
-                        if depth > 1:
-                            # Set attributes individually rather than during initialization
-                            # to avoid errors if certain attributes aren't supported by the crawler
-                            config.same_domain_only = True
-                            config.max_pages = max_pages
-                            config.max_links = depth
-                            
-                            # Enable follow_links if depth > 1
-                            setattr(config, 'follow_links', True)
-                            
-                            if debug:
-                                console.print(f"📊 Crawler Config: following links to depth {depth}, max {max_pages} pages")
-                        elif debug:
-                            console.print(f"📊 Crawler Config: single page mode (no link following)")
+                        console.print(f"🌐 Scraping: {title}")
                         
-                        extracted_text = await extract_content_with_crawler(crawler, url, config, debug)
-                        
-                        if extracted_text:
-                            extracted_data.append({
-                                "title": url,
-                                "url": url,
-                                "content": extracted_text,
-                                "snippet": ""
-                            })
-                            console.print(f"✅ Content extracted: {len(extracted_text)} chars")
-                        else:
-                            # Try fallback scraping
-                            fallback_content = await fallback_scrape(url, debug)
-                            
-                            max_chars = 100000 * depth  # Scale with depth parameter
-                            if fallback_content and len(fallback_content) > 0:
-                                extracted_text = fallback_content[:max_chars]  # Scale content size limit with depth
-                                extracted_data.append({
-                                    "title": url,
-                                    "url": url,
-                                    "content": extracted_text,
-                                    "snippet": ""
-                                })
-                                console.print(f"✅ Content extracted with fallback: {len(extracted_text)} chars")
-                    except Exception as e:
-                        error_msg = f"❌ Error scraping {url}: {str(e)}"
-                        if debug:
-                            import traceback
-                            error_msg += f"\n{traceback.format_exc()}"
-                        console.print(error_msg)
-                        
-                        # Always try fallback when crawler fails
                         try:
-                            console.print(f"⚠️ Trying fallback scraper after error...")
-                            fallback_content = await fallback_scrape(url, debug)
+                            if debug:
+                                console.print(f"  Creating crawler config for {url}")
                             
-                            max_chars = 100000 * depth  # Scale with depth parameter
-                            if fallback_content and len(fallback_content) > 0:
-                                extracted_text = fallback_content[:max_chars]  # Scale content size limit with depth
+                            config = CrawlerRunConfig(
+                                page_timeout=30000,
+                                wait_until='load',
+                                scan_full_page=True,
+                                word_count_threshold=100
+                            )
+                            
+                            extracted_text = await extract_content_with_crawler(crawler, url, config, debug)
+                            
+                            if extracted_text:
                                 extracted_data.append({
-                                    "title": url,
+                                    "title": title,
                                     "url": url,
                                     "content": extracted_text,
-                                    "snippet": ""
+                                    "snippet": result.get('snippet', '')
                                 })
-                                console.print(f"✅ Content extracted with fallback: {len(extracted_text)} chars")
-                        except Exception as inner_e:
+                                console.print(f"✅ Content extracted: {len(extracted_text)} chars")
+                            else:
+                                # Try fallback scraping
+                                # Try alternate extraction method
+                                fallback_content = await fallback_scrape(url, debug)
+                                
+                                if fallback_content and len(fallback_content) > 100000:
+                                    extracted_text = fallback_content[:100000]  # Increased content size limit
+                                    extracted_data.append({
+                                        "title": title,
+                                        "url": url,
+                                        "content": extracted_text,
+                                        "snippet": result.get('snippet', '')
+                                    })
+                                    console.print(f"✅ Extraction succeeded: {len(extracted_text)} chars")
+                        except Exception as e:
+                            error_msg = f"❌ Error scraping {url}: {str(e)}"
                             if debug:
-                                console.print(f"⚠️ Fallback scraper also failed: {str(inner_e)}")
+                                import traceback
+                                error_msg += f"\n{traceback.format_exc()}"
+                            console.print(error_msg)
+                            
+                            # Always try fallback when crawler fails
+                            try:
+                                console.print(f"⚠️ Trying fallback scraper after error...")
+                                fallback_content = await fallback_scrape(url, debug)
+                                
+                                if fallback_content and len(fallback_content) > 100000:
+                                    extracted_text = fallback_content[:100000]  # Increased content size limit
+                                    extracted_data.append({
+                                        "title": title,
+                                        "url": url,
+                                        "content": extracted_text,
+                                        "snippet": result.get('snippet', '')
+                                    })
+                                    console.print(f"✅ Extraction succeeded: {len(extracted_text)} chars")
+                            except Exception as inner_e:
+                                if debug:
+                                    console.print(f"⚠️ Fallback scraper also failed: {str(inner_e)}")
             except Exception as e:
                 error_msg = f"❌ Error initializing crawler: {str(e)}"
                 if debug:
@@ -507,28 +555,39 @@ def scrape(url, topic=None, depth=3, max_pages=3, debug=False, fallback_only=Fal
         
         # If fallback-only mode or crawler failed completely, use fallback on all URLs
         if fallback_only or (not use_crawler) or (use_crawler and not extracted_data):
-            # Process the single URL directly
-            console.print(f"🌐 {'Scraping' if fallback_only else 'Fallback scraping'}: {url}")
+            for result in selected_results:
+                url = result['link']
+                title = result['title']
                 
-            try:
-                # Try fallback scraping
-                fallback_content = await fallback_scrape(url, debug)
+                if not url:
+                    continue
                 
-                max_chars = 100000 * depth  # Scale with depth parameter
-                if fallback_content and len(fallback_content) > 0:
-                    extracted_text = fallback_content[:max_chars]  # Scale content size limit with depth
-                    extracted_data.append({
-                        "title": url,
-                        "url": url,
-                        "content": extracted_text,
-                        "snippet": ""
-                    })
-            except Exception as e:
-                error_msg = f"❌ Error scraping {url}: {str(e)}"
-                if debug:
-                    import traceback
-                    error_msg += f"\n{traceback.format_exc()}"
-                console.print(error_msg)
+                if not fallback_only:  # Only show this message if we're not intentionally using fallback only
+                    console.print(f"🌐 Fallback scraping: {title}")
+                else:
+                    console.print(f"🌐 Scraping: {title}")
+                    
+                try:
+                    # Try fallback scraping
+                    fallback_content = await fallback_scrape(url, debug)
+                    
+                    if fallback_content and len(fallback_content) > 100000:
+                        extracted_text = fallback_content[:100000]  # Increased content size limit
+                        extracted_data.append({
+                            "title": title,
+                            "url": url,
+                            "content": extracted_text,
+                            "snippet": result.get('snippet', '')
+                        })
+                        console.print(f"✅ Extraction succeeded: {len(extracted_text)} chars")
+                    else:
+                        console.print(f"⚠️ No content extracted from: {title}")
+                except Exception as e:
+                    error_msg = f"❌ Error scraping {url}: {str(e)}"
+                    if debug:
+                        import traceback
+                        error_msg += f"\n{traceback.format_exc()}"
+                    console.print(error_msg)
     
     # Run the scraping
     asyncio.run(scrape_and_extract())
@@ -570,7 +629,7 @@ def scrape(url, topic=None, depth=3, max_pages=3, debug=False, fallback_only=Fal
                     The snippet should provide a quick overview that could fit in a preview card or executive summary.
                     Include only the most essential information - core definition, key points, and relevance.
                     
-                    Keep the total length around 500-700 words.
+                    Keep the total length under 300 words.
 
 EXTREMELY IMPORTANT: You MUST use HTML tags for EVERYTHING and NEVER use Markdown syntax anywhere in your response.
 For example:
@@ -593,7 +652,7 @@ Every single piece of content must be enclosed in appropriate HTML tags. Do not 
                     The snippet should provide a quick overview that could fit in a preview card or executive summary.
                     Include only the most essential information - core definition, key points, and relevance.
                     
-                    Keep the total length around 500-700 words.
+                    Keep the total length under 300 words.
                     """
             elif summarize:
                 if format == 'markdown':
@@ -607,7 +666,7 @@ Every single piece of content must be enclosed in appropriate HTML tags. Do not 
                     - Basic background information
                     - Current relevance
                     
-                    Keep the length moderate (around 1000-1500 words). Use markdown formatting with appropriate headings.
+                    Keep the length moderate (around 800-1000 words). Use markdown formatting with appropriate headings.
                     
                     EXTREMELY IMPORTANT:
                     1. DO NOT start your response with ```markdown or any code fences
@@ -624,7 +683,7 @@ Every single piece of content must be enclosed in appropriate HTML tags. Do not 
                     - Basic background information
                     - Current relevance
                     
-                    Keep the length moderate (around 1000-1500 words).
+                    Keep the length moderate (around 800-1000 words).
 
 EXTREMELY IMPORTANT: You MUST use HTML tags for EVERYTHING and NEVER use Markdown syntax anywhere in your response.
 For example:
@@ -651,7 +710,7 @@ Every single piece of content must be enclosed in appropriate HTML tags. Do not 
                     - Basic background information
                     - Current relevance
                     
-                    Keep the length moderate (around 1000-1500 words). Use clear paragraph breaks and section indicators.
+                    Keep the length moderate (around 800-1000 words). Use clear paragraph breaks and section indicators.
                     """
             
             # Get image instructions if we have images
@@ -673,9 +732,9 @@ Every single piece of content must be enclosed in appropriate HTML tags. Do not 
             
             Topic: {query_str}
             
-            Based on the following web scrape results, create a {('snippet' if snippet else 'summary')}:
+            Based on the following web research results, create a {('snippet' if snippet else 'summary')}:
             
-            SCRAPE DATA:
+            RESEARCH DATA:
             {combined_sources_info}
             """
             
@@ -776,9 +835,9 @@ Every single piece of content must be enclosed in appropriate HTML tags. Do not 
                 
                 Topic: {query_str}
                 
-                Based on the following web scrape results, create a well-structured document section.
+                Based on the following web research results, create a well-structured document section.
                 
-                SCRAPE DATA:
+                RESEARCH DATA:
                 {sources_info}
                 
                 Make this section detailed, informative, and comprehensive.
@@ -809,6 +868,7 @@ Every single piece of content must be enclosed in appropriate HTML tags. Do not 
                 
                 # Clean up any stray markdown code fences - import if needed
                 if format == 'markdown':
+                    from cliche.utils.generate_from_scrape import clean_markdown_document
                     response = clean_markdown_document(response)
                 
                 # Clean up any stray markdown code fences from HTML content
@@ -993,9 +1053,9 @@ Every single piece of content must be enclosed in appropriate HTML tags. Do not 
             if not filename:
                 # Create a filename from the first few words of the query
                 words = query_str.lower().split()[:3]
-                base_filename = 'scrape_' + '_'.join(words) + ext
-                # Use the docs/scrape directory for organization
-                output_dir = get_docs_dir('scrape')
+                base_filename = 'research_' + '_'.join(words) + ext
+                # Use the docs/research directory for organization
+                output_dir = get_docs_dir('research')
                 # Get a unique filename
                 unique_filename = get_unique_filename(output_dir, base_filename)
                 file_path = str(output_dir / unique_filename)
@@ -1009,8 +1069,8 @@ Every single piece of content must be enclosed in appropriate HTML tags. Do not 
                     # If a full path is provided, use it
                     file_path = filename
                 else:
-                    # Otherwise, put it in the docs/scrape directory
-                    output_dir = get_docs_dir('scrape')
+                    # Otherwise, put it in the docs/research directory
+                    output_dir = get_docs_dir('research')
                     # Get a unique filename
                     unique_filename = get_unique_filename(output_dir, filename)
                     file_path = str(output_dir / unique_filename)
@@ -1022,7 +1082,7 @@ Every single piece of content must be enclosed in appropriate HTML tags. Do not 
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{query_str} - Scrape</title>
+    <title>{query_str} - Research</title>
     <style>
         body {{ font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif; line-height: 1.6; max-width: 800px; margin: 0 auto; padding: 20px; }}
         img {{ max-width: 100%; height: auto; display: block; margin: 20px 0; }}
@@ -1039,15 +1099,15 @@ Every single piece of content must be enclosed in appropriate HTML tags. Do not 
             
             # Save to file
             save_text_to_file(response, file_path)
-            console.print(f"✅ Scrape document saved to: {file_path}")
+            console.print(f"✅ Research document saved to: {file_path}")
         else:
             # Display the response in terminal
             console.print("\n" + "=" * 60)
-            console.print("📚 SCRAPE RESULTS")
+            console.print("📚 RESEARCH RESULTS")
             console.print("=" * 60)
             console.print(f"\n💡 {response}\n")
             console.print("=" * 60)
-            console.print(f"Sources: {len(extracted_data)} website analyzed")
+            console.print(f"Sources: {len(extracted_data)} websites analyzed")
             console.print("=" * 60)
         
         return 0  # Return success code
@@ -1059,6 +1119,73 @@ Every single piece of content must be enclosed in appropriate HTML tags. Do not 
         console.print(f"❌ Error generating response: {str(e)}")
         return 1  # Return error code
 
+def brave_search(query, num_results=5, api_key=None):
+    """Perform a search using the Brave Search API.
+    
+    Args:
+        query: The search query
+        num_results: Maximum number of results to return
+        api_key: Brave Search API key (optional, will try to get from config)
+        
+    Returns:
+        List of search result dictionaries
+    """
+    if not BRAVE_SEARCH_AVAILABLE:
+        click.echo("❌ Requests package not installed for Brave Search. Run: pip install requests")
+        return []
+    
+    # Get API key from config if not provided
+    if not api_key:
+        # Try to get from environment or config
+        from ..core import CLIche
+        try:
+            cliche = CLIche()
+            brave_config = cliche.config.config.get("services", {}).get("brave_search", {})
+            api_key = brave_config.get("api_key")
+        except Exception:
+            api_key = os.getenv("BRAVE_SEARCH_API_KEY")
+    
+    if not api_key:
+        click.echo("⚠️ Brave Search API key not configured. Skipping Brave Search.")
+        return []
+    
+    try:
+        # Brave Search API endpoint
+        url = "https://api.search.brave.com/res/v1/web/search"
+        
+        # Request headers with API key
+        headers = {
+            "Accept": "application/json",
+            "Content-Type": "application/json",
+            "X-Subscription-Token": api_key
+        }
+        
+        # Request parameters
+        params = {
+            "q": query,
+            "count": min(num_results, 10),  # Brave Search API max is 10 per request
+            "search_lang": "en"
+        }
+        
+        # Make the request
+        response = requests.get(url, headers=headers, params=params)
+        response.raise_for_status()
+        data = response.json()
+        
+        # Extract results
+        results = []
+        for item in data.get("web", {}).get("results", []):
+            results.append({
+                'link': item.get('url', ''),
+                'title': item.get('title', ''),
+                'snippet': item.get('description', '')
+            })
+        
+        return results
+        
+    except Exception as e:
+        click.echo(f"Error during Brave Search: {str(e)}")
+        return []
 
 async def get_image_placement_suggestions(llm, document_content, image_count, topic, format):
     """Ask the LLM to suggest optimal image placement locations in the document.
@@ -1120,6 +1247,36 @@ async def get_image_placement_suggestions(llm, document_content, image_count, to
     
     # Return only up to the requested number of placements
     return suggested_indices[:image_count]
+
+@click.command()
+@click.argument('url', required=True)
+@click.option('--topic', '-t', help='Topic to focus on when scraping')
+@click.option('--depth', '-d', default=1, help='How many levels of links to follow (1=just the URL, 2+=follow links)')
+@click.option('--max-pages', '-m', default=10, help='Maximum number of pages to scrape across all depth levels')
+@click.option('--debug', is_flag=True, help='Show debug information')
+@click.option('--fallback-only', is_flag=True, help='Use only the fallback scraper')
+@click.option('--write', '-w', is_flag=True, help='Generate a document from scraped content')
+@click.option('--format', '-f', default='markdown', type=click.Choice(['markdown', 'html', 'text']), help='Output format for generated document')
+@click.option('--filename', help='Custom filename for the generated document')
+@click.option('--image', help='Topic for images to include in the document')
+@click.option('--image-count', default=1, help='Number of images to include')
+@click.option('--image-width', default=800, help='Width of images in pixels')
+def scrape(url, topic, depth, max_pages, debug, fallback_only, write, format, filename, image, image_count, image_width):
+    """Scrape content from a website.
+    
+    Extract content from a URL with optional link following. Can generate a document from the scraped content.
+    
+    Examples:
+      cliche scrape https://docs.python.org/3/
+      cliche scrape https://example.com --depth 3 --max-pages 5
+      cliche scrape https://flask.palletsprojects.com --write --format markdown
+      cliche scrape https://docs.github.com --write --image "github" --image-count 2
+    """
+    if write:
+        research([url], depth, debug, fallback_only, write, format, filename, image, image_count, image_width, 'auto', False, False)
+    else:
+        # Just scrape the URL and show the content
+        asyncio.run(research([url], depth, debug, fallback_only, write, format, filename, image, image_count, image_width, 'auto', False, False))
 
 if __name__ == "__main__":
     research()

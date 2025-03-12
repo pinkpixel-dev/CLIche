@@ -765,7 +765,7 @@ Every single piece of content must be enclosed in appropriate HTML tags. Do not 
                 for idx, data in enumerate(chunk_data, chunk_start + 1):
                     sources_info += f"Source {idx}: {data['title']}\n"
                     sources_info += f"URL: {data['url']}\n"
-                    sources_info += f"Content: {data['content'][:5000]}...\n\n"
+                    sources_info += f"Content: {data['content'][:100000]}\n\n"
                 
                 # Create prompt for document generation specific to this chunk
                 if format == 'markdown':
@@ -780,6 +780,13 @@ Every single piece of content must be enclosed in appropriate HTML tags. Do not 
                         - Early developments and pioneers
                         
                         This is the FIRST CHUNK of a multi-part document, so focus on providing a strong foundation.
+                        
+                        IMPORTANT GUIDELINES:
+                        - Create a SUBSTANTIAL document section (2000-3000 words for this section)
+                        - PRESERVE all technical details, code examples, and important specifics from the sources
+                        - MAINTAIN the depth and complexity of the original content
+                        - DO NOT simplify or omit technical information
+                        - Include all relevant examples, specifications, and implementation details
                         
                         Format with proper markdown headings (## for main sections, ### for subsections).
                         
@@ -798,6 +805,13 @@ Every single piece of content must be enclosed in appropriate HTML tags. Do not 
             - Challenges and limitations
             
             This is a CONTINUATION of a document, so do not include introductory material that would already be covered.
+
+            IMPORTANT GUIDELINES:
+            - Create a SUBSTANTIAL document section (2000-3000 words for this section)
+            - PRESERVE all technical details, code examples, and important specifics from the sources
+            - MAINTAIN the depth and complexity of the original content
+            - DO NOT simplify or omit technical information
+            - Include all relevant examples, specifications, and implementation details
             
             Format with proper markdown headings (## for main sections, ### for subsections).
             
@@ -808,6 +822,13 @@ Every single piece of content must be enclosed in appropriate HTML tags. Do not 
             """
                 elif format == 'html':
                     doc_template = f"""Create part {chunk_start//chunk_size + 1} of a comprehensive HTML document about this topic. The ENTIRE content must use proper HTML tags, not Markdown.
+
+IMPORTANT GUIDELINES:
+- Create a SUBSTANTIAL document section (2000-3000 words for this section)
+- PRESERVE all technical details, code examples, and important specifics from the sources
+- MAINTAIN the depth and complexity of the original content
+- DO NOT simplify or omit technical information
+- Include all relevant examples, specifications, and implementation details
 
 EXTREMELY IMPORTANT: You MUST use HTML tags for EVERYTHING and NEVER use Markdown syntax anywhere in your response.
 For example:
@@ -828,7 +849,16 @@ DO NOT EVER USE # FOR HEADINGS OR ** FOR BOLD TEXT OR - FOR LISTS. Always use pr
 
 Every single piece of content must be enclosed in appropriate HTML tags. Do not mix HTML and Markdown syntax anywhere."""
                 else:
-                    doc_template = f"""Create part {chunk_start//chunk_size + 1} of a comprehensive document about this topic in plain text format."""
+                    doc_template = f"""Create part {chunk_start//chunk_size + 1} of a comprehensive document about this topic in plain text format.
+
+IMPORTANT GUIDELINES:
+- Create a SUBSTANTIAL document section (2000-3000 words for this section)
+- PRESERVE all technical details, code examples, and important specifics from the sources
+- MAINTAIN the depth and complexity of the original content
+- DO NOT simplify or omit technical information
+- Include all relevant examples, specifications, and implementation details
+
+Use clear paragraph breaks and section indicators with underlines or all-caps section titles."""
                 
                 # Build the chunk-specific prompt
                 prompt = f"""
@@ -1102,13 +1132,56 @@ Every single piece of content must be enclosed in appropriate HTML tags. Do not 
             console.print(f"✅ Research document saved to: {file_path}")
         else:
             # Display the response in terminal
-            console.print("\n" + "=" * 60)
-            console.print("📚 RESEARCH RESULTS")
-            console.print("=" * 60)
-            console.print(f"\n💡 {response}\n")
-            console.print("=" * 60)
-            console.print(f"Sources: {len(extracted_data)} websites analyzed")
-            console.print("=" * 60)
+            # For terminal output, generate a shorter summary instead of the full document
+            console.print("🔍 Generating summary for terminal display...")
+            
+            # Create a summary prompt
+            summary_prompt = f"""
+            Create a CONCISE SUMMARY of the information about this topic.
+            
+            Focus on providing:
+            - Clear definition and overview
+            - Key points and important aspects
+            - Core findings from the research
+            
+            Keep the length moderate (around 800-1000 words) for easy terminal reading.
+            
+            Topic: {query_str}
+            
+            Based on the following web research results:
+            """
+            
+            # Add a sample of each source (limited to save tokens)
+            for idx, data in enumerate(extracted_data, 1):
+                summary_prompt += f"\nSource {idx}: {data['title']}\n"
+                summary_prompt += f"URL: {data['url']}\n"
+                excerpt_length = min(1000, len(data['content']))
+                summary_prompt += f"Excerpt: {data['content'][:excerpt_length]}...\n\n"
+            
+            # Generate a terminal-friendly summary
+            try:
+                terminal_summary = asyncio.run(llm.generate_response(summary_prompt, professional_mode=True))
+                
+                console.print("\n" + "=" * 60)
+                console.print("📚 RESEARCH RESULTS")
+                console.print("=" * 60)
+                console.print(f"\n💡 {terminal_summary}\n")
+                console.print("=" * 60)
+                console.print(f"Sources: {len(extracted_data)} websites analyzed")
+                console.print(f"Note: This is a condensed summary. Use --write for a comprehensive document.")
+                console.print("=" * 60)
+            except Exception as e:
+                # Fallback to showing a portion of the full response if summary generation fails
+                console.print("\n" + "=" * 60)
+                console.print("📚 RESEARCH RESULTS (TRUNCATED)")
+                console.print("=" * 60)
+                # Show only the first ~1000 words (roughly 6000 characters)
+                display_length = min(6000, len(response))
+                console.print(f"\n💡 {response[:display_length]}...\n[truncated]\n")
+                console.print("=" * 60)
+                console.print(f"Sources: {len(extracted_data)} websites analyzed")
+                console.print(f"Note: Output truncated. Use --write for the full document.")
+                console.print("=" * 60)
         
         return 0  # Return success code
         

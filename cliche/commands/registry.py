@@ -7,6 +7,7 @@ from .ask import ask
 from .code import code
 from .create import create
 from .image import image
+from .memory import memory
 from .process import kill
 from .roast import roastme
 from .scrape import scrape
@@ -31,6 +32,7 @@ def register_commands(cli):
     cli.add_command(create)
     cli.add_command(image)
     cli.add_command(kill)
+    cli.add_command(memory)
     cli.add_command(models)
     cli.add_command(roastme)
     cli.add_command(scrape)

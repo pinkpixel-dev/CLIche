@@ -11,6 +11,12 @@ class OpenAIProvider(LLMBase):
         super().__init__(config)
         self.client = OpenAI(api_key=config.get('api_key') or os.getenv('OPENAI_API_KEY'))
 
+    async def ask(self, message, system_prompt=None, include_sys_info=False, professional_mode=False):
+        """Ask the LLM a question and get a response.
+        This method is called by CLIche's ask_llm and ask_with_memory methods.
+        """
+        return await self.generate_response(message, include_sys_info, professional_mode)
+
     async def generate_response(self, query: str, include_sys_info: bool = False, professional_mode: bool = False) -> str:
         try:                 
             # Get the configured model or use gpt-4o as default

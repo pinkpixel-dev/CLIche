@@ -27,6 +27,12 @@ CLIche includes powerful web scraping capabilities that allow you to extract and
 - **Detailed Progress**: Step-by-step console output showing fetch and extraction progress
 - **Specialized Extractors**: Optimized extraction for Wikipedia and Python documentation
 - **Performance Improvements**: Faster and more reliable content processing
+- **Improved Document Generation**:
+  - Source content utilization increased from 5,000 to 100,000 characters per source
+  - Enhanced prompts that preserve technical details, code examples, and structure
+  - Section generation targets 2,000-3,000 words for comprehensive coverage
+  - Terminal output provides concise 800-1,000 word summaries for readability
+  - Clear separation between terminal output (summaries) and file output (comprehensive)
 
 ## Prerequisites
 
@@ -92,6 +98,15 @@ cliche scrape https://flask.palletsprojects.com --depth 1 --write --format markd
 
 # Scrape and generate a document with images
 cliche scrape https://docs.python.org/3/tutorial/ --depth 2 --write --image "python programming" --image-count 2
+```
+
+**Terminal Output vs. File Output:**
+```bash
+# Get a concise summary in the terminal (800-1000 words)
+cliche scrape https://docs.python.org/3/tutorial/
+
+# Generate a comprehensive document with full technical details
+cliche scrape https://docs.python.org/3/tutorial/ --write
 ```
 
 ## Generate Command
@@ -195,13 +210,19 @@ The comprehensive mode:
    - Processes each section individually with the LLM to ensure high quality
    - Combines sections into a cohesive document with proper structure
 
-3. **Handles Large Content Volumes**: By breaking content into chunks of 2000-3000 characters each, it can process much larger documents than would fit in a single LLM context window.
+3. **Handles Large Content Volumes**: By processing chunks of up to 100,000 characters each (previously 5,000), it can process much larger documents than would fit in a single LLM context window.
 
 4. **Maintains Document Structure**: The chunking approach preserves proper document structure with:
    - Consistent title and introduction
    - Automatically generated table of contents
    - Well-organized sections based on content
    - Proper conclusion that summarizes main points
+
+5. **Enhanced Technical Preservation**: The improved prompt guidelines specifically instruct the LLM to:
+   - Preserve all technical details, code examples, and important specifics
+   - Maintain the depth and complexity of the original content
+   - Not simplify or omit technical information
+   - Include all relevant examples, specifications, and implementation details
 
 ### Summary Mode
 
@@ -217,17 +238,41 @@ The summary mode:
 - Follows a more traditional approach without advanced chunking
 - Is ideal for quick reference documents
 
+### Terminal Output Mode
+
+When you run commands without the `--write` flag, CLIche now uses a distinct terminal output mode:
+
+```bash
+cliche scrape https://docs.python.org/3/tutorial/
+cliche research "Python async programming"
+```
+
+Terminal output mode:
+- Generates a concise summary (800-1000 words) for easy terminal reading
+- Focuses on essential information and key points
+- Provides a clear note that this is a condensed summary
+- Includes a fallback to display truncated content if summary generation fails
+- Recommends using `--write` for comprehensive documents
+
 ### When to Use Each Mode
 
 - **Use Comprehensive Mode (Default) When:**
   - You need all technical details and examples
   - The full depth of information is important
   - You're creating reference documentation
+  - Always use with the `--write` flag to save to a file
 
 - **Use Summary Mode When:**
-  - You need a quick overview
+  - You need a quick overview in a document format
   - File size and brevity are priorities
   - You want a condensed version for quick scanning
+  - Use with the `--write` flag and `--summarize` flag
+
+- **Use Terminal Output Mode When:**
+  - You want to quickly preview content in the terminal
+  - You're exploring a topic before creating a document
+  - You need a brief summary for immediate reference
+  - Simply omit the `--write` flag from your command
 
 ## Advanced Usage
 
@@ -342,6 +387,8 @@ The scrape command supports sophisticated multi-page content extraction using tw
 The system intelligently scales content limits based on depth:
 - Each depth level increases the character limit by 100,000 chars
 - With `depth=3`, the total character limit would be 300,000 chars
+- Extraction can now utilize up to 100,000 chars per source (previously 5,000)
+- Terminal output is summarized to 800-1000 words for readability
 
 **How Link Following Works:**
 

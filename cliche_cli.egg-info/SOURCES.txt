@@ -18,6 +18,7 @@ cliche/commands/draw.py
 cliche/commands/example_dual_cmd.py
 cliche/commands/file.py
 cliche/commands/image.py
+cliche/commands/memory.py
 cliche/commands/process.py
 cliche/commands/registry.py
 cliche/commands/research.py
@@ -28,6 +29,9 @@ cliche/commands/server.py
 cliche/commands/system.py
 cliche/commands/view.py
 cliche/commands/write.py
+cliche/memory/__init__.py
+cliche/memory/memory.py
+cliche/memory/provider.py
 cliche/providers/__init__.py
 cliche/providers/anthropic.py
 cliche/providers/base.py
@@ -45,6 +49,7 @@ cliche/utils/file.py
 cliche/utils/gpu.py
 cliche/utils/image_generation.py
 cliche/utils/image_scraper.py
+cliche/utils/markdown_cleaner.py
 cliche/utils/stability.py
 cliche/utils/unsplash.py
 cliche_cli.egg-info/PKG-INFO
@@ -76,6 +81,7 @@ draw/durdraw/neofetcher.py
 tests/test_isolated_complete.py
 tests/test_isolated_complete_fixed.py
 tests/test_isolated_python_integration.py
+tests/test_memory.py
 tests/test_python_extractor.py
 tests/test_python_extractor_with_saving.py
 tests/test_python_integration.py

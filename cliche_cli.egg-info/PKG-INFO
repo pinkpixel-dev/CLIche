@@ -7,13 +7,13 @@ Requires-Dist: openai>=1.0.0
 Requires-Dist: anthropic>=0.7.0
 Requires-Dist: google-generativeai>=0.3.0
 Requires-Dist: psutil>=5.9.0
-Requires-Dist: requests>=2.31.0
+Requires-Dist: requests>=2.28.0
 Requires-Dist: python-dotenv>=1.0.0
 Requires-Dist: asyncio>=3.4.3
 Requires-Dist: py3nvml>=0.2.7
 Requires-Dist: setuptools>=58.0.4
-Requires-Dist: crawl4ai>=0.4.3
-Requires-Dist: beautifulsoup4>=4.12.0
+Requires-Dist: crawl4ai==0.4.248
+Requires-Dist: beautifulsoup4>=4.11.0
 Requires-Dist: html2text>=2024.2.26
 Requires-Dist: mdformat>=0.7.0
 Requires-Dist: black>=23.0.0
@@ -26,6 +26,6 @@ Requires-Dist: pydantic>=2.0.0
 Requires-Dist: python-unsplash>=1.1.0
 Requires-Dist: Pillow>=10.0.0
 Requires-Dist: python-magic>=0.4.27
-Requires-Dist: GitPython
+Requires-Dist: aiofiles>=22.1.0
 Requires-Dist: praw>=7.8.1
 Dynamic: requires-dist

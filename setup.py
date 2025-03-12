@@ -11,13 +11,13 @@ setup(
         'anthropic>=0.7.0',
         'google-generativeai>=0.3.0',
         'psutil>=5.9.0',
-        'requests>=2.31.0',
+        'requests>=2.28.0',
         'python-dotenv>=1.0.0',
         'asyncio>=3.4.3',
         'py3nvml>=0.2.7',
         'setuptools>=58.0.4',
-        'crawl4ai>=0.4.3',
-        'beautifulsoup4>=4.12.0',
+        'crawl4ai==0.4.248',
+        'beautifulsoup4>=4.11.0',
         'html2text>=2024.2.26',
         'mdformat>=0.7.0',  
         'black>=23.0.0',
@@ -28,9 +28,9 @@ setup(
         'art>=6.0',
         'pydantic>=2.0.0',
         'python-unsplash>=1.1.0',
-        'Pillow>=10.0.0',  # For image processing
-        'python-magic>=0.4.27', 
-        'GitPython',  # Required for automatic Durdraw installation
+        'Pillow>=10.0.0',
+        'python-magic>=0.4.27',
+        'aiofiles>=22.1.0',
         'praw>=7.8.1',
         # External system dependency (not listed here, install manually):
         # chafa - terminal image viewer (recommended version 1.12.0+)

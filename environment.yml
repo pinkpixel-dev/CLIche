@@ -7,16 +7,16 @@ dependencies:
   - pip>=23.0
   - aiofiles>=22.1.0
   - beautifulsoup4>=4.11.0
-  - requests>=2.27.0
+  - requests>=2.28.0
   - numpy>=1.22.0
   - click>=8.0.0
   - psutil>=5.9.0
   - black>=23.0.0
   - pytest>=7.0.0
   - rich>=13.0.0
+  - pillow>=10.0.0
   - pip:
     - crawl4ai==0.4.248
-    - litellm>=0.1.79
     - openai>=1.0.0
     - anthropic>=0.7.0
     - google-generativeai>=0.3.0
@@ -29,8 +29,9 @@ dependencies:
     - python-dotenv>=1.0.0
     - asyncio>=3.4.3
     - python-unsplash>=1.1.0
-    - duckduckgo-search>=3.8.0
+    - duckduckgo-search>=2.8.6
     - praw>=7.8.1
+    - python-magic>=0.4.27
 # System dependencies (not handled by conda):
 # chafa - terminal image viewer (recommended version 1.12.0+)
 # Install with: 
