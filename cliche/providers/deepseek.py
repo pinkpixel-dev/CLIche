@@ -14,6 +14,12 @@ class DeepSeekProvider(LLMBase):
         self.api_key = config['api_key']
         self.api_base = "https://api.deepseek.com/v1"
 
+    async def ask(self, message, system_prompt=None, include_sys_info=False, professional_mode=False):
+        """Ask the LLM a question and get a response.
+        This method is called by CLIche's ask_llm and ask_with_memory methods.
+        """
+        return await self.generate_response(message, include_sys_info, professional_mode)
+
     async def generate_response(self, query: str, include_sys_info: bool = False, professional_mode: bool = False) -> str:
         try:
             api_url = f"{self.api_base}/chat/completions"
