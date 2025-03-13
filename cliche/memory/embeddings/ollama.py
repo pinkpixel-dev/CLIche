@@ -1,13 +1,14 @@
 """
 Ollama embedding provider for CLIche memory system.
 
-This module provides an embedding provider using Ollama.
+This module provides an embedding provider using Ollama, adapted from mem0.
 
 Made with ❤️ by Pink Pixel
 """
-from typing import List, Optional, Dict, Any, Union
+from typing import List, Optional, Dict, Any, Union, Literal
 import logging
 import subprocess
+import sys
 import numpy as np
 import json
 import os
@@ -20,7 +21,7 @@ from .base import BaseEmbeddingProvider
 
 # Import Ollama conditionally to handle cases where it's not installed
 try:
-    import ollama
+    from ollama import Client
     OLLAMA_AVAILABLE = True
 except ImportError:
     OLLAMA_AVAILABLE = False
@@ -43,11 +44,21 @@ class OllamaEmbeddingProvider(BaseEmbeddingProvider):
         super().__init__(config)
         self.config = config
         self.host = config.host
+        self.client = None
         
         # Check if Ollama is installed
         if not OLLAMA_AVAILABLE:
             self.logger.warning("Ollama Python library is not installed. Using HTTP fallback.")
             # We can still use Ollama via HTTP API, so don't return
+        
+        # Initialize the client
+        if OLLAMA_AVAILABLE:
+            try:
+                self.client = Client(host=self.host)
+                self.logger.info(f"Initialized Ollama client with host: {self.host}")
+            except Exception as e:
+                self.logger.error(f"Failed to initialize Ollama client: {e}")
+                self.client = None
         
         # Check if Ollama is running
         if not self.is_available():
@@ -100,9 +111,9 @@ class OllamaEmbeddingProvider(BaseEmbeddingProvider):
         for text in texts:
             # Generate embedding
             try:
-                if OLLAMA_AVAILABLE:
+                if self.client is not None:
                     # Use Ollama Python library
-                    response = ollama.embeddings(
+                    response = self.client.embeddings(
                         model=self.config.model_name,
                         prompt=text
                     )
@@ -146,9 +157,9 @@ class OllamaEmbeddingProvider(BaseEmbeddingProvider):
         """
         try:
             # Try to ping the Ollama server
-            if OLLAMA_AVAILABLE:
+            if self.client is not None:
                 # Use Ollama Python library
-                ollama.list()
+                self.client.list()
             else:
                 # Use HTTP API
                 response = requests.get(f"{self.host}/api/tags")
@@ -174,37 +185,29 @@ class OllamaEmbeddingProvider(BaseEmbeddingProvider):
         
         try:
             # Check if model is already available
-            if OLLAMA_AVAILABLE:
-                models = ollama.list()
-                for model in models.get("models", []):
-                    if model.get("name") == model_name:
-                        self.logger.info(f"Model already available: {model_name}")
-                        return True
+            local_models = []
+            if self.client is not None:
+                # Use Ollama Python library
+                models_response = self.client.list()
+                local_models = models_response.get("models", [])
+                if not any(model.get("name") == model_name for model in local_models):
+                    self.logger.info(f"Downloading model: {model_name}")
+                    self.client.pull(model_name)
             else:
                 # Use HTTP API
                 response = requests.get(f"{self.host}/api/tags")
                 response.raise_for_status()
                 models = response.json()
-                for model in models.get("models", []):
-                    if model.get("name") == model_name:
-                        self.logger.info(f"Model already available: {model_name}")
-                        return True
+                local_models = models.get("models", [])
+                if not any(model.get("name") == model_name for model in local_models):
+                    self.logger.info(f"Downloading model: {model_name}")
+                    response = requests.post(
+                        f"{self.host}/api/pull",
+                        json={"name": model_name}
+                    )
+                    response.raise_for_status()
             
-            # Download the model
-            self.logger.info(f"Downloading model: {model_name}")
-            
-            if OLLAMA_AVAILABLE:
-                # Use Ollama Python library
-                ollama.pull(model_name)
-            else:
-                # Use HTTP API
-                response = requests.post(
-                    f"{self.host}/api/pull",
-                    json={"name": model_name}
-                )
-                response.raise_for_status()
-            
-            self.logger.info(f"Downloaded model: {model_name}")
+            self.logger.info(f"Model available: {model_name}")
             return True
         except Exception as e:
             self.logger.error(f"Failed to download model {model_name}: {e}")
