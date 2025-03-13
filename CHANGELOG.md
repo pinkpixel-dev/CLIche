@@ -51,6 +51,16 @@ All notable changes to the CLIche project will be documented in this file.
   - Added utility helpers for easy implementation in other commands
   - Improved command-line usability and flexibility
   - Updated documentation with usage examples
+- 🧠 Enhanced memory system:
+  - Added `--reset` flag to retention command for quickly resetting to indefinite memory retention
+  - Fixed embedding model configuration with proper provider settings
+  - Improved documentation and organization in docs/memory/
+  - Added support for multiple embedding providers (Ollama, OpenAI, Anthropic, Google)
+  - Added embedding model installation command for Ollama models
+  - Implemented configurable retention policies (time-based and count-based)
+  - Fixed ChromaDB integration for improved semantic search
+  - Enhanced error handling and diagnostics
+  - Added comprehensive memory system documentation
 
 ### Changed
 - Refactored general extractor to use direct browser rendering

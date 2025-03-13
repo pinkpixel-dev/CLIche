@@ -128,72 +128,64 @@ cliche memory status
 
 CLIche includes a built-in memory system that allows you to:
 
-1. Store important information for later retrieval
+1. Store important information for later recall
+```bash
+cliche memory store "Important fact or information"
+# or use the shorter alias
+cliche remember "Important fact or information"
+```
 
-   ```bash
-   cliche memory store "Important fact or information"
-   ```
-
-2. Search for stored memories using natural language queries
-
-   ```bash
-   cliche memory recall "search term"
-   ```
+2. Recall information with semantic search
+```bash
+cliche memory recall "search term"
+```
 
 3. Ask questions with memory context to get more personalized answers
+```bash
+# Memory is now automatically used with the ask command when enabled
+cliche ask "question that might benefit from memory context"
 
-   ```bash
-   # Memory is now automatically used with the ask command when enabled
-   cliche ask "question that might benefit from memory context"
-   
-   # To disable memory for a specific query
-   cliche ask --no-memory "question without memory context"
-   ```
+# To disable memory for a specific query
+cliche ask --no-memory "question without memory context"
+```
 
 4. Toggle the memory system on or off
+```bash
+cliche memory toggle on|off
+```
 
-   ```bash
-   cliche memory toggle on|off
-   ```
-
-5. Set a user ID for multi-user support
-
-   ```bash
-   cliche memory user "your_username"
-   ```
+5. Set your user ID for personalized memory storage
+```bash
+cliche memory user "your_username"
+```
 
 6. Check the status of the memory system
-
-   ```bash
-   cliche memory status
-   ```
+```bash
+cliche memory status
+```
 
 7. Automatically store important information (when auto_memory is enabled)
+```bash
+# Enable auto_memory
+cliche memory automemory on
 
-   ```bash
-   # Enable auto_memory
-   cliche memory status --auto on
-   
-   # Disable auto_memory
-   cliche memory status --auto off
-   ```
+# Disable auto_memory
+cliche memory automemory off
+```
 
-8. Manage your user profile for personalized interactions
+8. Configure memory retention policy
+```bash
+# Keep memories for 30 days
+cliche memory retention --days 30
 
-   ```bash
-   # Set profile information
-   cliche memory profile set name "Your Name"
-   cliche memory profile set location "Your Location"
-   cliche memory profile set role "Software Developer"
-   
-   # Toggle profile usage on/off
-   cliche memory profile toggle on|off
-   
-   # Clear your profile
-   cliche memory profile clear
-   ```
+# Keep only the most recent 100 memories
+cliche memory retention --max 100
 
-The memory system uses SQLite for storage and implements a simple but effective search mechanism to find relevant memories for your queries. The user profile feature allows CLIche to remember personal information and use it in every interaction, making responses more personalized.
+# Reset to keep all memories indefinitely
+cliche memory retention --reset
+```
+
+For complete documentation on the memory system, see [Memory System Documentation](docs/memory/README.md).
 
 ## User Profile
 
