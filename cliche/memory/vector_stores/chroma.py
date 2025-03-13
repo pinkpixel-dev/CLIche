@@ -1,7 +1,7 @@
 """
 ChromaDB vector store for CLIche memory system.
 
-This module provides a vector store implementation using ChromaDB.
+This module provides a vector store implementation using ChromaDB, adapted from mem0.
 
 Made with ❤️ by Pink Pixel
 """
@@ -10,6 +10,7 @@ import os
 import logging
 import numpy as np
 from pathlib import Path
+from pydantic import BaseModel
 
 from ..config import VectorStoreConfig
 from .base import BaseVectorStore
@@ -17,11 +18,19 @@ from .base import BaseVectorStore
 # Import ChromaDB conditionally to handle cases where it's not installed
 try:
     import chromadb
-    from chromadb.utils import embedding_functions
+    from chromadb.config import Settings
     from chromadb.api.models.Collection import Collection
     CHROMA_AVAILABLE = True
 except ImportError:
     CHROMA_AVAILABLE = False
+    
+
+class OutputData(BaseModel):
+    """Data model for ChromaDB output"""
+    id: Optional[str]  # memory id
+    score: Optional[float]  # similarity score
+    payload: Optional[Dict]  # metadata
+    content: Optional[str]  # document content
 
 
 class ChromaVectorStore(BaseVectorStore):
@@ -40,6 +49,7 @@ class ChromaVectorStore(BaseVectorStore):
         self.client = None
         self.collection = None
         self.embedding_function = None
+        self.collection_name = config.collection_name
         
         # Check if ChromaDB is installed
         if not CHROMA_AVAILABLE:
@@ -61,9 +71,15 @@ class ChromaVectorStore(BaseVectorStore):
             return False
         
         try:
+            # Set up settings
+            settings = Settings(anonymized_telemetry=False)
+            
             # Create the client
             if self.config.host:
                 # Use HTTP client if host is specified
+                settings.chroma_server_host = self.config.host
+                settings.chroma_server_http_port = self.config.port or 8000
+                settings.chroma_api_impl = "chromadb.api.fastapi.FastAPI"
                 self.client = chromadb.HttpClient(
                     host=self.config.host,
                     port=self.config.port or 8000
@@ -79,24 +95,15 @@ class ChromaVectorStore(BaseVectorStore):
                 # Ensure directory exists
                 os.makedirs(persist_directory, exist_ok=True)
                 
+                settings.persist_directory = persist_directory
+                settings.is_persistent = True
+                
                 self.client = chromadb.PersistentClient(
                     path=persist_directory
                 )
             
             # Create or get the collection
-            collection_name = self.config.collection_name
-            
-            # Check if collection exists
-            try:
-                self.collection = self.client.get_collection(collection_name)
-                self.logger.info(f"Using existing collection: {collection_name}")
-            except ValueError:
-                # Create the collection if it doesn't exist
-                self.logger.info(f"Creating new collection: {collection_name}")
-                self.collection = self.client.create_collection(
-                    name=collection_name,
-                    metadata={"dimensions": self.config.dimensions}
-                )
+            self.collection = self.create_col(self.collection_name)
             
             # Set the flag
             self.is_initialized = True
@@ -105,6 +112,82 @@ class ChromaVectorStore(BaseVectorStore):
         except Exception as e:
             self.logger.error(f"Failed to initialize ChromaDB: {e}")
             return False
+    
+    def create_col(self, name: str, vector_size: int = None, distance: str = "cosine") -> Collection:
+        """
+        Create a new collection or get an existing one.
+        
+        Args:
+            name: Name of the collection
+            vector_size: Size of the vectors
+            distance: Distance metric to use (e.g., "cosine", "euclidean")
+            
+        Returns:
+            The collection
+        """
+        try:
+            # Try to get existing collection
+            collection = self.client.get_collection(name=name)
+            self.logger.info(f"Using existing collection: {name}")
+        except ValueError:
+            # Create the collection if it doesn't exist
+            self.logger.info(f"Creating new collection: {name}")
+            collection = self.client.create_collection(
+                name=name,
+                metadata={"dimensions": self.config.dimensions or vector_size}
+            )
+        
+        return collection
+    
+    def _parse_output(self, data: Dict) -> List[OutputData]:
+        """
+        Parse the output data from ChromaDB.
+        
+        Args:
+            data: Output data from ChromaDB
+            
+        Returns:
+            List of parsed output data
+        """
+        keys = ["ids", "distances", "metadatas", "documents"]
+        values = []
+        
+        for key in keys:
+            value = data.get(key, [])
+            if isinstance(value, list) and value and isinstance(value[0], list):
+                value = value[0]
+            values.append(value)
+        
+        ids, distances, metadatas, documents = values
+        max_length = max(len(v) for v in values if isinstance(v, list) and v is not None)
+        
+        result = []
+        for i in range(max_length):
+            # Convert distance to score: smaller distance = higher score
+            # For cosine distance, the range is 0 to 2, where 0 is identical
+            # Convert to a 0-1 score where 1 is identical
+            distance = distances[i] if isinstance(distances, list) and distances and i < len(distances) else 0
+            
+            # Handle negative distances (which can happen with cosine distance in ChromaDB)
+            # Normalize to a 0-1 range where higher is better
+            if distance < 0:
+                # For negative distances, we'll use a simple normalization
+                # Assuming the range is roughly -2 to 0, map to 0.5 to 1.0
+                score = 0.75 + (distance / 4)  # Maps -2 to 0.25, 0 to 0.75
+            else:
+                # For positive distances, smaller is better
+                # Map 0 to 1.0, 2 to 0.0
+                score = max(0, 1.0 - (distance / 2.0))
+            
+            entry = OutputData(
+                id=ids[i] if isinstance(ids, list) and ids and i < len(ids) else None,
+                score=score,
+                payload=(metadatas[i] if isinstance(metadatas, list) and metadatas and i < len(metadatas) else None),
+                content=(documents[i] if isinstance(documents, list) and documents and i < len(documents) else None),
+            )
+            result.append(entry)
+        
+        return result
     
     def add(
         self, 
@@ -155,6 +238,41 @@ class ChromaVectorStore(BaseVectorStore):
             self.logger.error(f"Failed to add memory: {e}")
             raise
     
+    def insert(
+        self,
+        vectors: List[list],
+        payloads: Optional[List[Dict]] = None,
+        ids: Optional[List[str]] = None,
+    ):
+        """
+        Insert vectors into the collection.
+        
+        Args:
+            vectors: List of vectors to insert
+            payloads: List of payloads (metadata) for each vector
+            ids: List of IDs for each vector
+        """
+        # Check if initialized
+        if not self.is_initialized:
+            if not self.initialize():
+                raise RuntimeError("ChromaDB is not initialized")
+        
+        # Generate IDs if not provided
+        if ids is None:
+            ids = [self.generate_id() for _ in range(len(vectors))]
+        
+        # Add the vectors to ChromaDB
+        try:
+            self.collection.add(
+                ids=ids,
+                embeddings=vectors,
+                metadatas=payloads
+            )
+            self.logger.debug(f"Inserted {len(vectors)} vectors")
+        except Exception as e:
+            self.logger.error(f"Failed to insert vectors: {e}")
+            raise
+    
     def search(
         self,
         query_embedding: np.ndarray,
@@ -187,6 +305,8 @@ class ChromaVectorStore(BaseVectorStore):
         if filter_metadata:
             where = self._prepare_where_clause(filter_metadata)
         
+        self.logger.debug(f"Searching ChromaDB with embedding of shape {query_embedding.shape}, limit={limit}, min_score={min_score}")
+        
         # Search for memories
         try:
             results = self.collection.query(
@@ -196,28 +316,25 @@ class ChromaVectorStore(BaseVectorStore):
                 include=["documents", "metadatas", "distances"]
             )
             
-            # Process the results
-            memories = []
-            ids = results.get("ids", [[]])[0]
-            documents = results.get("documents", [[]])[0]
-            metadatas = results.get("metadatas", [[]])[0]
-            distances = results.get("distances", [[]])[0]
+            # Parse the output
+            output_data = self._parse_output(results)
             
-            for i in range(len(ids)):
-                # ChromaDB returns distance, convert to similarity score (1 - distance)
-                score = 1.0 - distances[i]
-                
+            # Convert to memory format
+            memories = []
+            for item in output_data:
                 # Skip if below minimum score
-                if score < min_score:
+                if item.score < min_score:
+                    self.logger.debug(f"Skipping result with score {item.score} (below min_score {min_score})")
                     continue
                 
                 memories.append({
-                    "id": ids[i],
-                    "content": documents[i],
-                    "metadata": metadatas[i],
-                    "score": score
+                    "id": item.id,
+                    "content": item.content,
+                    "metadata": item.payload,
+                    "score": item.score
                 })
             
+            self.logger.debug(f"Processed search results: {len(memories)} items after filtering")
             return memories
         except Exception as e:
             self.logger.error(f"Failed to search memories: {e}")
@@ -245,27 +362,25 @@ class ChromaVectorStore(BaseVectorStore):
                 include=["documents", "metadatas", "embeddings"]
             )
             
+            # Parse the output
+            output_data = self._parse_output(results)
+            
             # Check if memory was found
-            ids = results.get("ids", [])
-            if not ids or memory_id not in ids:
+            if not output_data:
                 return None
             
-            # Get the index of the memory
-            index = ids.index(memory_id)
+            item = output_data[0]
             
-            # Get the memory data
-            document = results.get("documents", [])[index]
-            metadata = results.get("metadatas", [])[index]
-            embedding = results.get("embeddings", [])[index]
-            
-            # Convert embedding to numpy array
-            embedding_array = np.array(embedding)
+            # Convert embedding to numpy array if present
+            embedding = None
+            if "embeddings" in results and results["embeddings"]:
+                embedding = np.array(results["embeddings"][0])
             
             return {
-                "id": memory_id,
-                "content": document,
-                "metadata": metadata,
-                "embedding": embedding_array
+                "id": item.id,
+                "content": item.content,
+                "metadata": item.payload,
+                "embedding": embedding
             }
         except Exception as e:
             self.logger.error(f"Failed to get memory: {e}")
@@ -432,7 +547,7 @@ class ChromaVectorStore(BaseVectorStore):
         Returns:
             Collection name
         """
-        return self.config.collection_name
+        return self.collection_name
     
     def collection_exists(self) -> bool:
         """
@@ -450,7 +565,7 @@ class ChromaVectorStore(BaseVectorStore):
         try:
             collections = self.client.list_collections()
             for collection in collections:
-                if collection.name == self.config.collection_name:
+                if collection.name == self.collection_name:
                     return True
             return False
         except Exception as e:
@@ -475,4 +590,103 @@ class ChromaVectorStore(BaseVectorStore):
             return [collection.name for collection in collections]
         except Exception as e:
             self.logger.error(f"Failed to list collections: {e}")
+            return []
+            
+    def delete_collection(self) -> bool:
+        """
+        Delete the collection.
+        
+        Returns:
+            True if successful, False otherwise
+        """
+        # Check if initialized
+        if not self.is_initialized:
+            if not self.initialize():
+                return False
+                
+        # Delete the collection
+        try:
+            self.client.delete_collection(name=self.collection_name)
+            self.logger.info(f"Deleted collection: {self.collection_name}")
+            return True
+        except Exception as e:
+            self.logger.error(f"Failed to delete collection: {e}")
+            return False
+            
+    def get_collection_info(self) -> Dict[str, Any]:
+        """
+        Get information about the collection.
+        
+        Returns:
+            Dictionary with collection information
+        """
+        # Check if initialized
+        if not self.is_initialized:
+            if not self.initialize():
+                return {}
+                
+        # Get collection info
+        try:
+            collection = self.client.get_collection(name=self.collection_name)
+            return {
+                "name": collection.name,
+                "count": collection.count(),
+                "metadata": collection.metadata
+            }
+        except Exception as e:
+            self.logger.error(f"Failed to get collection info: {e}")
+            return {}
+            
+    def list(self, filter_metadata: Optional[Dict[str, Any]] = None, limit: Optional[int] = None) -> List[Dict[str, Any]]:
+        """
+        List all memories.
+        
+        Args:
+            filter_metadata: Metadata to filter by
+            limit: Maximum number of memories to return
+            
+        Returns:
+            List of memories
+        """
+        # Check if initialized
+        if not self.is_initialized:
+            if not self.initialize():
+                return []
+                
+        # Prepare where clause for filtering
+        where = None
+        if filter_metadata:
+            where = self._prepare_where_clause(filter_metadata)
+            
+        # List memories
+        try:
+            results = self.collection.get(
+                where=where,
+                limit=limit,
+                include=["documents", "metadatas", "embeddings"]
+            )
+            
+            # Parse the output
+            output_data = self._parse_output(results)
+            
+            # Convert to memory format
+            memories = []
+            for item in output_data:
+                memory = {
+                    "id": item.id,
+                    "content": item.content,
+                    "metadata": item.payload,
+                }
+                
+                # Add embedding if available
+                if "embeddings" in results and results["embeddings"]:
+                    idx = output_data.index(item)
+                    if idx < len(results["embeddings"]):
+                        memory["embedding"] = np.array(results["embeddings"][idx])
+                
+                memories.append(memory)
+            
+            return memories
+        except Exception as e:
+            self.logger.error(f"Failed to list memories: {e}")
             return []
