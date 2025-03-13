@@ -18,6 +18,8 @@ from .view import view
 from .write import write
 from .research import research
 from .draw import draw
+from .remember import remember
+from .forget import forget
 
 def register_commands(cli):
     """Register all commands with the CLI."""
@@ -34,6 +36,8 @@ def register_commands(cli):
     cli.add_command(kill)
     cli.add_command(memory)
     cli.add_command(models)
+    cli.add_command(remember)
+    cli.add_command(forget)
     cli.add_command(roastme)
     cli.add_command(scrape)
     cli.add_command(search)

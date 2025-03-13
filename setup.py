@@ -32,6 +32,7 @@ setup(
         'python-magic>=0.4.27',
         'aiofiles>=22.1.0',
         'praw>=7.8.1',
+        'ollama>=0.4.7',
         # External system dependency (not listed here, install manually):
         # chafa - terminal image viewer (recommended version 1.12.0+)
         # Ubuntu/Debian: sudo add-apt-repository ppa:hpjansson/chafa && sudo apt update && sudo apt install chafa

@@ -1,7 +1,7 @@
 """
 Base vector store for CLIche memory system.
 
-This module defines the abstract base class for vector stores.
+This module defines the abstract base class for vector stores, adapted from mem0.
 
 Made with ❤️ by Pink Pixel
 """
@@ -43,6 +43,18 @@ class BaseVectorStore(ABC):
         pass
     
     @abstractmethod
+    def create_col(self, name: str, vector_size: int = None, distance: str = "cosine"):
+        """
+        Create a new collection.
+        
+        Args:
+            name: Name of the collection
+            vector_size: Size of the vectors
+            distance: Distance metric to use (e.g., "cosine", "euclidean")
+        """
+        pass
+    
+    @abstractmethod
     def add(
         self, 
         content: str, 
@@ -61,6 +73,23 @@ class BaseVectorStore(ABC):
             
         Returns:
             ID of the added memory
+        """
+        pass
+    
+    @abstractmethod
+    def insert(
+        self,
+        vectors: List[list],
+        payloads: Optional[List[Dict]] = None,
+        ids: Optional[List[str]] = None,
+    ):
+        """
+        Insert vectors into a collection.
+        
+        Args:
+            vectors: List of vectors to insert
+            payloads: List of payloads (metadata) for each vector
+            ids: List of IDs for each vector
         """
         pass
     
@@ -192,5 +221,39 @@ class BaseVectorStore(ABC):
         
         Returns:
             List of collection names
+        """
+        pass
+        
+    @abstractmethod
+    def delete_collection(self) -> bool:
+        """
+        Delete the collection.
+        
+        Returns:
+            True if successful, False otherwise
+        """
+        pass
+        
+    @abstractmethod
+    def get_collection_info(self) -> Dict[str, Any]:
+        """
+        Get information about the collection.
+        
+        Returns:
+            Dictionary with collection information
+        """
+        pass
+        
+    @abstractmethod
+    def list(self, filter_metadata: Optional[Dict[str, Any]] = None, limit: Optional[int] = None) -> List[Dict[str, Any]]:
+        """
+        List all memories.
+        
+        Args:
+            filter_metadata: Metadata to filter by
+            limit: Maximum number of memories to return
+            
+        Returns:
+            List of memories
         """
         pass

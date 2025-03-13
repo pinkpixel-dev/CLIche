@@ -121,6 +121,11 @@ def config(provider: Optional[str], api_key: Optional[str], model: Optional[str]
     
     # Handle provider updates
     if provider:
+        # Check if we're changing providers
+        current_provider = config.config.get('provider', '')
+        is_provider_change = current_provider != provider
+        
+        # Update provider in config
         config.config['provider'] = provider
         
         # Initialize provider config if it doesn't exist
@@ -134,6 +139,32 @@ def config(provider: Optional[str], api_key: Optional[str], model: Optional[str]
         # Update API key if provided
         if api_key:
             config.config['providers'][provider]['api_key'] = api_key
+        
+        # Auto-configure memory embedding model based on LLM provider
+        if 'memory' not in config.config:
+            config.config['memory'] = {}
+        
+        if 'embedding' not in config.config['memory']:
+            config.config['memory']['embedding'] = {}
+            
+        # Set the embedding provider to match the LLM provider when appropriate
+        if provider == 'ollama':
+            # Use Ollama for embeddings if setting Ollama as the provider
+            config.config['memory']['embedding']['provider'] = 'ollama'
+            config.config['memory']['embedding']['model'] = 'nomic-embed-text:latest'
+            config.config['memory']['embedding']['dimensions'] = 768
+            
+            # Also update the Ollama provider config with embedding model
+            if 'embedding_model' not in config.config['providers']['ollama']:
+                config.config['providers']['ollama']['embedding_model'] = 'nomic-embed-text:latest'
+                
+            click.echo("🧠 Memory embedding model set to Ollama (nomic-embed-text:latest)")
+        elif provider == 'openai':
+            # Use OpenAI for embeddings if setting OpenAI as the provider
+            config.config['memory']['embedding']['provider'] = 'openai'
+            config.config['memory']['embedding']['model'] = 'text-embedding-3-small'
+            config.config['memory']['embedding']['dimensions'] = 1536
+            click.echo("🧠 Memory embedding model set to OpenAI (text-embedding-3-small)")
     elif model or api_key:
         # If no provider specified, use active provider
         active_provider = config.config['provider']
@@ -141,7 +172,13 @@ def config(provider: Optional[str], api_key: Optional[str], model: Optional[str]
             config.config['providers'][active_provider]['model'] = model
         if api_key:
             config.config['providers'][active_provider]['api_key'] = api_key
+        
+        # If using Ollama, update the embedding model in provider config
+        if active_provider == 'ollama' and 'ollama' in config.config['providers']:
+            if 'embedding_model' not in config.config['providers']['ollama'] or not config.config['providers']['ollama']['embedding_model']:
+                config.config['providers']['ollama']['embedding_model'] = 'nomic-embed-text:latest'
 
+    # Save configuration before potentially restarting
     config.save_config(config.config)
     
     # Add clear instructions for common commands
@@ -150,6 +187,11 @@ def config(provider: Optional[str], api_key: Optional[str], model: Optional[str]
         click.echo("  • To generate an image: cliche image \"your prompt\" --generate")
         click.echo("  • To set image size: cliche image \"your prompt\" --generate --size 512x768")
         click.echo("  • To see all image models: cliche image --list-models")
+        
+    if provider:
+        click.echo("\n📝 Memory configuration is automatically set up based on your provider.")
+        click.echo("  • To check memory status: cliche memory status")
+        click.echo("  • To set embedding model manually: cliche memory set-model MODEL_NAME")
     
     click.echo("✨ Configuration updated. I'll try to be less judgy (no promises).")
 
