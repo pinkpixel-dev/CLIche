@@ -1,0 +1,110 @@
+[build-system]
+requires = ["setuptools>=42", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "cliche"
+version = "1.4.0"
+description = "Your terminal's snarky genius assistant - a CLI tool for interacting with various LLM providers"
+readme = "README.md"
+authors = [
+    {name = "Pink Pixel", email = "info@pinkpixel.dev"}
+]
+license = {text = "MIT"}
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Topic :: Utilities",
+]
+requires-python = ">=3.8"
+dependencies = [
+    # Core dependencies
+    "click>=8.0.0",
+    "openai>=1.0.0",
+    "anthropic>=0.7.0",
+    "google-generativeai>=0.3.0",
+    "requests>=2.28.0",
+    "rich>=13.0.0",
+    "aiohttp>=3.8.0",
+    "python-dotenv>=1.0.0",
+    "pyyaml>=6.0",
+    "numpy==1.26.4",
+    "pillow>=10.0.0",
+    "python-unsplash>=1.1.0",
+    "ollama>=0.4.7",
+    
+    # System utilities
+    "psutil>=5.9.0",
+    "py3nvml>=0.2.7",
+    
+    # Art generation and handling
+    "art>=6.0",
+    
+    # Web scraping and content handling
+    "crawl4ai>=0.5.0",
+    "beautifulsoup4>=4.11.0",
+    "html2text>=2024.2.26",
+    "duckduckgo-search>=2.8.6",
+    "markdown>=3.3.0",
+    "mdformat>=0.7.0",
+    
+    # File handling
+    "aiofiles>=22.1.0",
+    "python-magic>=0.4.27",
+    "praw>=7.8.1",
+    
+    # Async support
+    "asyncio>=3.4.3",
+    
+    # Machine learning
+    "pydantic>=2.0.0",
+    
+    # Memory system
+    "sqlite3-api>=2.0.0",
+    "chromadb>=0.4.0",
+    "tqdm>=4.62.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0.0",
+    "pytest-asyncio>=0.21.0",
+    "black>=22.1.0",
+    "isort>=5.10.0",
+    "flake8>=4.0.0",
+    "mypy>=0.931",
+    "pytest-cov>=3.0.0",
+    "pre-commit>=2.17.0",
+]
+
+[project.urls]
+"Homepage" = "https://github.com/pinkpixel/cliche"
+"Bug Tracker" = "https://github.com/pinkpixel/cliche/issues"
+
+[project.scripts]
+cliche = "cliche.core:cli"
+
+[tool.black]
+line-length = 100
+target-version = ["py38"]
+include = '\.pyi?$'
+
+[tool.isort]
+profile = "black"
+line_length = 100
+
+[tool.mypy]
+python_version = "3.8"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = false
+disallow_incomplete_defs = false
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = "test_*.py"
+python_functions = "test_*" 
