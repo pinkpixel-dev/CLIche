@@ -1,33 +1,35 @@
 """
-Memory module for CLIche
+Memory module for CLIche.
 
-This module is temporarily using a stub implementation while
-the new memory system is being developed.
+This module provides memory capabilities for CLIche, allowing it to remember information
+across sessions and interactions.
 
 Made with ❤️ by Pink Pixel
 """
+import logging
 
-from .stub_memory import StubMemory
+# Set up logging
+logger = logging.getLogger(__name__)
 
-# Export the stub as the main class
-CLIcheMemory = StubMemory
+# Import configuration classes
+from .config import MemoryConfig, BaseEmbeddingConfig, VectorStoreConfig
 
-# Maintain compatibility with existing imports
-MemoryProvider = object
-EnhancedMemory = object
-MemoryExtractor = object
-MemoryCategory = object
-OllamaEmbeddingProvider = object
-MemoryEmbeddingStore = object
-MemoryCategorizer = object
+# Import factory classes
+from .factory import EmbeddingProviderFactory, VectorStoreFactory
 
+# Import memory manager
+from .manager import MemoryManager
+
+# Log information about the memory system
+logger.info("CLIche memory system initialized")
+logger.info("Memory commands will be available in future releases")
+
+# Define what's available when importing from this module
 __all__ = [
-    "CLIcheMemory",
-    "MemoryProvider",
-    "EnhancedMemory",
-    "MemoryExtractor",
-    "MemoryCategory",
-    "OllamaEmbeddingProvider",
-    "MemoryEmbeddingStore",
-    "MemoryCategorizer"
+    'MemoryConfig',
+    'BaseEmbeddingConfig',
+    'VectorStoreConfig',
+    'EmbeddingProviderFactory',
+    'VectorStoreFactory',
+    'MemoryManager',
 ] 
