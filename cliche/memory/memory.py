@@ -1,22 +1,22 @@
 """
-Memory system for CLIche
+Stub memory system for CLIche during transition to new memory architecture
 
-Provides a unified interface for memory operations.
+This is a temporary stub implementation that maintains compatibility
+while the new memory system is being implemented.
 
 Made with ❤️ by Pink Pixel
 """
 import os
 import logging
-from typing import Dict, Any, List, Optional
+import time
+from typing import Dict, Any, List, Optional, Tuple
 
-from .provider import MemoryProvider
-
-class CLIcheMemory:
-    """Memory system for CLIche"""
+class StubMemory:
+    """Stub memory system for CLIche"""
     
     def __init__(self, config):
         """
-        Initialize the memory system
+        Initialize the stub memory system
         
         Args:
             config: CLIche configuration object
@@ -35,301 +35,152 @@ class CLIcheMemory:
         self.user_id = memory_config.get("user_id", "default_user")
         self.auto_memory = memory_config.get("auto_memory", True)
         
-        # Initialize user profile settings
-        self.profile_enabled = memory_config.get("profile_enabled", True)
-        self.profile = memory_config.get("profile", {})
+        # Create stub messages
+        self.COMING_SOON = "⚠️ New memory system coming soon! This feature is currently being rebuilt."
+        self.stub_memory_id = "stub-memory-id"
         
-        # Create data directory if it doesn't exist
-        os.makedirs(self.data_dir, exist_ok=True)
+        # Log initialization
+        self.logger.info("Stub memory system initialized")
         
-        # Initialize memory provider
-        if self.enabled:
-            try:
-                self.provider = MemoryProvider(
-                    provider=self.provider_name,
-                    data_dir=self.data_dir,
-                    collection_name=self.collection_name,
-                    config=config
-                )
-                self.logger.info(f"Memory system initialized with provider {self.provider_name}")
-            except Exception as e:
-                self.logger.error(f"Failed to initialize memory provider: {str(e)}")
-                self.enabled = False
-                self.provider = None
-        else:
-            self.provider = None
-    
+    @property
+    def enhanced_memory(self):
+        """Stub enhanced memory property"""
+        return None
+        
     def add(self, content: str, metadata: Optional[Dict[str, Any]] = None) -> Optional[str]:
         """
-        Add a memory
+        Stub method to add a memory
         
         Args:
-            content: Memory content
-            metadata: Additional metadata
+            content: Content to store
+            metadata: Metadata for the memory
             
         Returns:
-            Memory ID if successful, None otherwise
+            Stub memory ID
         """
-        if not self.enabled or not self.provider:
-            return None
-        
-        try:
-            memory_id = self.provider.add_memory(content, self.user_id, metadata)
-            return memory_id
-        except Exception as e:
-            self.logger.error(f"Failed to add memory: {str(e)}")
-            return None
+        self.logger.info(f"Stub memory add called with content: {content[:50]}...")
+        return self.stub_memory_id
     
     def search(self, query: str, limit: int = 5) -> List[Dict[str, Any]]:
         """
-        Search for memories
+        Stub method to search memories
         
         Args:
             query: Search query
             limit: Maximum number of results
             
         Returns:
-            List of matching memories
+            Empty list
         """
-        if not self.enabled or not self.provider:
-            return []
-        
-        try:
-            results = self.provider.search_memories(query, self.user_id, limit)
-            return results.get("results", [])
-        except Exception as e:
-            self.logger.error(f"Failed to search memories: {str(e)}")
-            return []
+        self.logger.info(f"Stub memory search called with query: {query}")
+        return []
     
     def enhance_with_memories(self, message: str) -> str:
         """
-        Enhance a message with relevant memories
+        Stub method to enhance a message with memories
         
         Args:
-            message: User message
+            message: Message to enhance
             
         Returns:
-            Enhanced message with memory context
+            Original message unchanged
         """
-        if not self.enabled or not self.provider:
-            return message
-        
-        try:
-            # Search for relevant memories
-            memories = self.search(message)
-            
-            # Format memories for inclusion in the prompt
-            memories_str = ""
-            if memories:
-                memories_str += "Here are some relevant memories that might help you provide a better response:\n"
-                memories_str += "\n".join([
-                    f"- {memory['memory']}" for memory in memories
-                ])
-                memories_str += "\n\n"
-            
-            # Add user profile information if enabled
-            if self.profile_enabled and self.profile:
-                memories_str += "User Profile Information:\n"
-                for key, value in self.profile.items():
-                    memories_str += f"- {key.capitalize()}: {value}\n"
-                memories_str += "\n"
-            
-            # If we have any context to add, enhance the message
-            if memories_str:
-                enhanced_message = f"""
-{message}
-
-{memories_str}
-"""
-                return enhanced_message
-            
-            return message
-        except Exception as e:
-            self.logger.error(f"Failed to enhance message with memories: {str(e)}")
-            return message
+        return message
+    
+    def detect_memory_request(self, query: str) -> Tuple[bool, str, Dict[str, Any]]:
+        """Stub method for memory request detection"""
+        return False, query, {}
+    
+    def detect_preference(self, query: str) -> Tuple[bool, str, Dict[str, Any]]:
+        """Stub method for preference detection"""
+        return False, query, {}
     
     def chat_with_memory(self, message: str, system_prompt: Optional[str] = None) -> str:
-        """
-        Chat with the AI using memory context
-        
-        Args:
-            message: User message
-            system_prompt: Optional custom system prompt
-            
-        Returns:
-            AI response
-        """
-        if not self.enabled or not self.provider:
-            return "Memory system is disabled. Please enable it to use this feature."
-        
-        try:
-            return self.provider.chat_with_memory(message, self.user_id, system_prompt)
-        except Exception as e:
-            self.logger.error(f"Failed to chat with memory: {str(e)}")
-            return f"Error: {str(e)}"
+        """Stub method for memory-based chat"""
+        return self.COMING_SOON
     
     def toggle(self, enabled: bool) -> bool:
         """
         Toggle memory system on/off
         
         Args:
-            enabled: Whether to enable the memory system
+            enabled: True to enable, False to disable
             
         Returns:
-            Success status
+            Current state
         """
-        try:
-            # Update memory config
-            memory_config = self.config.config.get("memory", {})
-            memory_config["enabled"] = enabled
-            self.config.config["memory"] = memory_config
-            
-            # Save config
-            self.config.save_config(self.config.config)
-            
-            # Update instance state
-            self.enabled = enabled
-            
-            # Reinitialize provider if enabling
-            if enabled and not self.provider:
-                self.provider = MemoryProvider(
-                    provider=self.provider_name,
-                    data_dir=self.data_dir,
-                    collection_name=self.collection_name,
-                    config=self.config
-                )
-            
-            return True
-        except Exception as e:
-            self.logger.error(f"Failed to toggle memory system: {str(e)}")
-            return False
+        self.enabled = enabled
+        return self.enabled
     
-    def set_user_id(self, user_id: str) -> bool:
+    def toggle_auto_memory(self, enabled: bool) -> bool:
         """
-        Set the user ID for memories
+        Toggle auto-memory on/off
         
         Args:
-            user_id: User ID
+            enabled: True to enable, False to disable
             
         Returns:
-            Success status
+            Current state
         """
-        try:
-            # Update memory config
-            memory_config = self.config.config.get("memory", {})
-            memory_config["user_id"] = user_id
-            self.config.config["memory"] = memory_config
-            
-            # Save config
-            self.config.save_config(self.config.config)
-            
-            # Update instance state
-            self.user_id = user_id
-            
-            return True
-        except Exception as e:
-            self.logger.error(f"Failed to set user ID: {str(e)}")
-            return False
+        self.auto_memory = enabled
+        return self.auto_memory
+    
+    def extract_and_store_memories(self, conversation: str) -> List[str]:
+        """Stub method for memory extraction"""
+        return []
     
     def get_status(self) -> Dict[str, Any]:
         """
         Get memory system status
         
         Returns:
-            Dictionary with status information
+            Status information
         """
         return {
             "enabled": self.enabled,
+            "profile_enabled": False,
             "provider": self.provider_name,
+            "message": self.COMING_SOON,
+            "vector_store": None,
             "user_id": self.user_id,
-            "auto_memory": self.auto_memory,
-            "data_dir": self.data_dir,
-            "collection_name": self.collection_name,
-            "profile_enabled": self.profile_enabled,
-            "profile": self.profile
+            "memory_count": 0,
+            "auto_memory": self.auto_memory
         }
     
     def set_profile_field(self, field: str, value: str) -> bool:
-        """
-        Set a user profile field
-        
-        Args:
-            field: Profile field name
-            value: Profile field value
-            
-        Returns:
-            Success status
-        """
-        try:
-            # Update memory config
-            memory_config = self.config.config.get("memory", {})
-            
-            # Initialize profile if it doesn't exist
-            if "profile" not in memory_config:
-                memory_config["profile"] = {}
-            
-            # Update profile field
-            memory_config["profile"][field] = value
-            self.config.config["memory"] = memory_config
-            
-            # Save config
-            self.config.save_config(self.config.config)
-            
-            # Update instance state
-            self.profile[field] = value
-            
-            return True
-        except Exception as e:
-            self.logger.error(f"Failed to set profile field: {str(e)}")
-            return False
+        """Stub method for profile field setting"""
+        return False
     
     def toggle_profile(self, enabled: bool) -> bool:
-        """
-        Toggle user profile on/off
-        
-        Args:
-            enabled: Whether to enable the user profile
-            
-        Returns:
-            Success status
-        """
-        try:
-            # Update memory config
-            memory_config = self.config.config.get("memory", {})
-            memory_config["profile_enabled"] = enabled
-            self.config.config["memory"] = memory_config
-            
-            # Save config
-            self.config.save_config(self.config.config)
-            
-            # Update instance state
-            self.profile_enabled = enabled
-            
-            return True
-        except Exception as e:
-            self.logger.error(f"Failed to toggle user profile: {str(e)}")
-            return False
+        """Stub method for profile toggling"""
+        return False
     
     def clear_profile(self) -> bool:
+        """Stub method for profile clearing"""
+        return False
+    
+    def auto_add(self, message: str, response: str) -> Optional[str]:
+        """Stub method for auto memory addition"""
+        return None
+    
+    def extract_personal_info(self, message: str, response: str = None, context: Dict[str, Any] = None) -> Dict[str, str]:
+        """Stub method for personal info extraction"""
+        return {}
+    
+    def set_auto_memory(self, enabled: bool) -> bool:
         """
-        Clear the user profile
+        Set auto-memory status
         
+        Args:
+            enabled: True to enable, False to disable
+            
         Returns:
-            Success status
+            Current state
         """
-        try:
-            # Update memory config
-            memory_config = self.config.config.get("memory", {})
-            memory_config["profile"] = {}
-            self.config.config["memory"] = memory_config
-            
-            # Save config
-            self.config.save_config(self.config.config)
-            
-            # Update instance state
-            self.profile = {}
-            
-            return True
-        except Exception as e:
-            self.logger.error(f"Failed to clear user profile: {str(e)}")
-            return False
+        self.auto_memory = enabled
+        return self.auto_memory
+        
+    # Additional stub methods for remaining functionality
+    def remove_memory(self, term: str) -> Tuple[bool, str]:
+        """Stub method for memory removal"""
+        return False, self.COMING_SOON 

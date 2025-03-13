@@ -1,13 +1,33 @@
 """
 Memory module for CLIche
 
-Provides functionality for storing and retrieving memories
-across different LLM providers.
+This module is temporarily using a stub implementation while
+the new memory system is being developed.
 
 Made with ❤️ by Pink Pixel
 """
 
-from .memory import CLIcheMemory
-from .provider import MemoryProvider
+from .stub_memory import StubMemory
 
-__all__ = ["CLIcheMemory", "MemoryProvider"]
+# Export the stub as the main class
+CLIcheMemory = StubMemory
+
+# Maintain compatibility with existing imports
+MemoryProvider = object
+EnhancedMemory = object
+MemoryExtractor = object
+MemoryCategory = object
+OllamaEmbeddingProvider = object
+MemoryEmbeddingStore = object
+MemoryCategorizer = object
+
+__all__ = [
+    "CLIcheMemory",
+    "MemoryProvider",
+    "EnhancedMemory",
+    "MemoryExtractor",
+    "MemoryCategory",
+    "OllamaEmbeddingProvider",
+    "MemoryEmbeddingStore",
+    "MemoryCategorizer"
+] 
