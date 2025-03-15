@@ -8,8 +8,13 @@ Made with ❤️ by Pink Pixel
 import click
 import logging
 import asyncio
+import re
+import sys
+import io
+from collections import Counter
 
 from ..core import get_cliche_instance
+from .chat import find_related_memories, CATEGORY_PATTERNS, extract_keywords
 
 logger = logging.getLogger(__name__)
 
@@ -25,7 +30,8 @@ def ask(query, no_memory):
     assistant = get_cliche_instance()
     
     # Determine whether to use memory
-    use_memory = assistant.memory.enabled and not no_memory
+    memory_ready = assistant.memory and assistant.memory.enabled
+    use_memory = memory_ready and not no_memory
     
     # Generate response
     try:
@@ -33,21 +39,48 @@ def ask(query, no_memory):
         click.echo()
         
         if use_memory:
-            # Enhance query with memories
-            enhanced_query = assistant.memory.enhance_with_memories(query_str)
-            response = asyncio.run(assistant.ask_llm(enhanced_query))
+            # Capture standard error to prevent FTS errors from showing up
+            old_stderr = sys.stderr
+            sys.stderr = io.StringIO()
+            
+            try:
+                # Find related memories using the enhanced memory retrieval system
+                memory_context = find_related_memories(assistant, query_str)
+            finally:
+                # Restore stderr and log any captured errors
+                captured_errors = sys.stderr.getvalue()
+                sys.stderr = old_stderr
+                
+                if captured_errors:
+                    logger.debug(f"Suppressed errors during memory search: {captured_errors}")
+            
+            if memory_context:
+                # Enhance the prompt with memories and instructions
+                enhanced_query = (
+                    f"{memory_context}\n"
+                    f"Use the above memories to personalize your response if relevant. "
+                    f"Don't directly mention that you're using memories unless directly asked. "
+                    f"Respond naturally as if you've known the user for a while. "
+                    f"Now please respond to this question: {query_str}"
+                )
+                response = asyncio.run(assistant.ask_llm(enhanced_query))
+            else:
+                # No relevant memories found, proceed with original query
+                response = asyncio.run(assistant.ask_llm(query_str))
             
             # Store the interaction as a memory if auto_memory is enabled
             if assistant.memory.auto_memory:
                 try:
-                    # Create a memory of this interaction
-                    memory_content = f"User asked: {query_str}\nYou responded: {response}"
-                    memory_id = assistant.memory.add(memory_content, {"type": "conversation"})
-                    # We don't need to notify the user about this
+                    # Store the query as a memory
+                    assistant.memory.add(query_str, {
+                        "type": "question",
+                        "response": response
+                    })
                 except Exception as e:
                     # Silently handle any errors with memory storage
-                    pass
+                    logger.error(f"Failed to add memory: {str(e)}")
         else:
+            # If memory isn't ready, just use the LLM without memory
             response = asyncio.run(assistant.ask_llm(query_str))
         
         click.echo(f"💡 {response}")

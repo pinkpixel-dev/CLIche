@@ -2,9 +2,38 @@
 
 All notable changes to the CLIche project will be documented in this file.
 
+## [Unreleased]
+
+### Added
+- 🧠 Memory system improvements:
+  - Added SQLite-based memory system for better reliability
+  - Added `memory repair` command to fix database issues
+  - Enhanced forget command with better UI and confirmation steps
+  - Added range selection (e.g., "1-3") for deleting multiple memories
+  - Added automatic migration from old database to new format
+  - Updated documentation to reflect the simplified architecture
+
+### Fixed
+- 🛠️ Enhanced error handling in memory system:
+  - Suppressed disruptive "database disk image is malformed" FTS errors from user display
+  - Implemented robust error handling in both `chat` and `ask` commands
+  - Added graceful fallback to LIKE search when FTS search fails
+  - Improved logging of suppressed errors for debugging purposes
+  - Enhanced the memory search method to handle errors more elegantly
+  - Updated documentation to reflect the improved error handling capabilities
+
 ## [Pre-Release Beta]
 
-## [Unreleased]
+## [1.4.0] - 2024-03-10
+
+### Removed
+- 🧹 Removed the `draw` command and Durdraw dependency:
+  - Eliminated external dependency on the Durdraw repository
+  - Removed all references to the draw command in documentation
+  - Cleaned up imports and command registrations
+  - Updated the COMMAND_TEST_LIST.md to remove draw command testing instructions
+  - Simplified the codebase by removing unnecessary dependencies
+
 ### Added
 - 🎨 New interactive ANSI art drawing command:
   - Added `draw` command with intuitive TUI interface
@@ -61,6 +90,16 @@ All notable changes to the CLIche project will be documented in this file.
   - Fixed ChromaDB integration for improved semantic search
   - Enhanced error handling and diagnostics
   - Added comprehensive memory system documentation
+- 🧠 Improved memory system for Anthropic provider:
+  - Implemented Voyage AI integration for embeddings when using Anthropic provider
+  - Added dedicated configuration options for Voyage AI (`voyage_api_key` in config)
+  - Created new `cliche memory set-voyage-key` command for easy configuration
+  - Updated documentation with clear instructions for setting up Voyage AI
+  - Added multiple Voyage models: voyage-3-lite (default), voyage-3, voyage-2
+  - Implemented automatic model detection and dimension handling
+  - Enhanced error handling with graceful fallbacks to hash-based embeddings
+  - Added configuration status display in memory status command
+  - Improved reload mechanism to ensure model changes are applied immediately
 
 ### Changed
 - Refactored general extractor to use direct browser rendering
@@ -81,59 +120,6 @@ All notable changes to the CLIche project will be documented in this file.
 - Fixed character limit inconsistencies between commands
 - Improved image extraction reliability
 - Fixed config-manager command flags (--show, --create, --backup, etc.)
-
-## [1.4.0] - 2025-02-28
-
-### Added
-- 🖼️ Added AI-powered image generation to image command
-  - Integrated with OpenAI's DALL-E API
-  - Added support for Stability AI's image generation
-  - Implemented --generate option for existing image command
-  - Added provider selection and model selection
-  - Added style options specific to each provider
-  - Implemented proper error handling with helpful guidance
-  - Created dedicated configuration with --dalle-key and --stability-key
-  - Added automated image storage in ~/.cliche/files/images/
-- 🎨 Unified `create` command for ASCII/ANSI art generation
-  - Consolidates functionality of art and ansi commands
-  - Added banner mode for creating text headers
-  - Improved font selection and display options
-  - Maintains backward compatibility with existing commands
-
-### Fixed
-- 🔧 Improved Unsplash API key handling
-  - Added multiple fallback methods for finding the API key
-  - Updated error message with clearer configuration instructions
-  - Fixed issues with running CLIche outside the normal environment
-  - Cleaned up redundant entries in config file
-
-### Enhanced
-- 🖼️ Streamlined image viewing experience
-  - Removed verbose output messages during image viewing/generation
-  - Added automatic image display after generation with minimal text
-  - Simplified error messages and suggestions
-  - Created a cleaner, more user-friendly interface
-- 🧹 Improved placeholder cleanup in document generation
-  - Added specific cleanup for legacy image placeholder patterns
-  - Enhanced markdown document cleaning to remove all placeholder artifacts
-  - Ensured consistent cleanup across research, write, and generate commands
-  - Improved document quality with cleaner output
-- 🔄 Standardized image handling across research and write commands
-  - Removed legacy image placeholder instructions in research command
-  - Unified both commands to use AI-powered contextual image placement
-  - Simplified the codebase by using consistent approach for all document generation
-  - Improved user experience with cleaner output messages
-- 🖼️ Extended AI-powered image placement to the generate command
-  - Removed verbose prompt instructions
-  - Simplified image processing logic
-  - Created consistent experience across all document generation commands
-  - Improved document generation quality with better formatting
-- 🔄 Improved Python.org scraping with consistent styling and output
-  - Added blue crawl4ai initialization text for consistency across all sites
-  - Enhanced content extraction with crawl4ai integration
-  - Improved file naming with timestamped JSON files matching image directories
-  - Fixed error handling and fallback strategies for better reliability
-  - Added clear output messaging showing where files are saved
 
 ## [1.3.4] - 2025-02-27
 
