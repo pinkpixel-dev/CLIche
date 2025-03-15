@@ -7,12 +7,21 @@ import requests
 from .base import LLMBase
 
 class DeepSeekProvider(LLMBase):
-    def __init__(self, config: Dict):
-        super().__init__(config)
-        if 'api_key' not in config:
-            raise ValueError("DeepSeek API key not found in config")
-        self.api_key = config['api_key']
-        self.api_base = "https://api.deepseek.com/v1"
+    def __init__(self, config):
+        # Check if config is a Config object or a dictionary
+        if hasattr(config, 'get_provider_config'):
+            # Config object
+            provider_config = config.get_provider_config('deepseek')
+        else:
+            # Dictionary
+            provider_config = config
+            
+        # Initialize with the provider config
+        super().__init__(provider_config)
+        
+        # Get API key
+        self.api_key = provider_config.get('api_key') or os.getenv('DEEPSEEK_API_KEY')
+        self.base_url = provider_config.get('base_url', 'https://api.deepseek.com/v1')
 
     async def ask(self, message, system_prompt=None, include_sys_info=False, professional_mode=False):
         """Ask the LLM a question and get a response.
@@ -22,7 +31,7 @@ class DeepSeekProvider(LLMBase):
 
     async def generate_response(self, query: str, include_sys_info: bool = False, professional_mode: bool = False) -> str:
         try:
-            api_url = f"{self.api_base}/chat/completions"
+            api_url = f"{self.base_url}/chat/completions"
             headers = {
                 "Authorization": f"Bearer {self.api_key}",
                 "Content-Type": "application/json"

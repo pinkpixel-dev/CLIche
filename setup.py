@@ -3,7 +3,7 @@ from setuptools import setup, find_packages
 setup(
     name="cliche-cli",
     version="0.2.0",
-    packages=find_packages() + ['draw', 'draw.durdraw'],
+    packages=find_packages(),
     include_package_data=True,
     install_requires=[
         'click>=8.0.0',
@@ -33,6 +33,7 @@ setup(
         'aiofiles>=22.1.0',
         'praw>=7.8.1',
         'ollama>=0.4.7',
+        'voyageai>=0.1.0',  # For Anthropic memory embeddings
         # External system dependency (not listed here, install manually):
         # chafa - terminal image viewer (recommended version 1.12.0+)
         # Ubuntu/Debian: sudo add-apt-repository ppa:hpjansson/chafa && sudo apt update && sudo apt install chafa

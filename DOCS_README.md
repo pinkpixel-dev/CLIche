@@ -9,18 +9,16 @@ Documentation for various aspects of the CLIche project.
 - [Research Command](docs/RESEARCH_COMMAND_README.md) - Documentation for the research command
 - [Scrape Command](docs/SCRAPE_COMMAND_README.md) - Documentation for the web scraping command
 - [Contributing](docs/CONTRIBUTING.md) - Contribution guide for CLIche
+- [Changelog](CHANGELOG.md) 
 
 ## Development Documentation
 
 - [Known Issues](KNOWN_ISSUES.md) - Currently known issues and their status
 - [Command Test List](COMMAND_TEST_LIST.md) - List of commands to test
+- [Scrape Test List](SCRAPE_TESTS.md) - List of sites to test scraping functionality
+- [Development Journal](MEMORIES.md)
 
 ## Planning Documents
 
 - [Document Generation Improvements](DOC_GEN_IMPROVEMENT.md) - Plans for improving document generation 
 - [Project Planning Guide](CLICHE_PLAN.md) - Plans for the CLIche project
-
-## Other
-
-- [Changelog](CHANGELOG.md) 
-- [Development Journal](MEMORIES.md)

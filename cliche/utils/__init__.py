@@ -4,6 +4,7 @@ Utility functions and classes
 from .gpu import get_gpu_info
 from .docker import get_docker_containers
 from .unsplash import UnsplashAPI, format_image_for_markdown, format_image_for_html, get_photo_credit
+from .memory import CLIcheMemory
 
 # Import image generation modules
 try:
@@ -27,7 +28,8 @@ __all__ = [
     'UnsplashAPI',
     'format_image_for_markdown',
     'format_image_for_html',
-    'get_photo_credit'
+    'get_photo_credit',
+    'CLIcheMemory'
 ]
 
 # Add image generation modules if available

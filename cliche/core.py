@@ -85,18 +85,29 @@ class Config:
                     # Make it available to DALL-E utilities
                     os.environ['OPENAI_API_KEY'] = openai_key
 
-    def save_config(self, config: Dict[str, Any]) -> None:
-        """Save configuration to file."""
-        # Create config directory if it doesn't exist
-        self.config_dir.mkdir(parents=True, exist_ok=True)
+    def save_config(self, config: Dict[str, Any]) -> bool:
+        """
+        Save configuration to file.
         
-        # Write config file
-        with open(self.config_file, "w") as f:
-            json.dump(config, f, indent=4)
-        
-        self.config = config
-        # Reload service API keys
-        self._load_services_env()
+        Returns:
+            bool: True if config was saved successfully, False otherwise
+        """
+        try:
+            # Create config directory if it doesn't exist
+            self.config_dir.mkdir(parents=True, exist_ok=True)
+            
+            # Write config file
+            with open(self.config_file, "w") as f:
+                json.dump(config, f, indent=4)
+            
+            self.config = config
+            # Reload service API keys
+            self._load_services_env()
+            
+            return True
+        except Exception as e:
+            logging.error(f"Failed to save config: {str(e)}")
+            return False
 
     def get_provider_config(self, provider_name: str) -> Dict[str, Any]:
         """Get configuration for a specific provider."""
@@ -126,7 +137,7 @@ class CLIche:
         
         # Initialize memory system
         try:
-            from .memory import CLIcheMemory
+            from .utils import CLIcheMemory
             self.memory = CLIcheMemory(self.config)
             self.logger.info("Memory system initialized")
         except Exception as e:

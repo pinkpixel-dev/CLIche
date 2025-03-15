@@ -7,9 +7,21 @@ import google.generativeai as genai
 from .base import LLMBase
 
 class GoogleProvider(LLMBase):
-    def __init__(self, config: Dict):
-        super().__init__(config)
-        genai.configure(api_key=config.get('api_key') or os.getenv('GOOGLE_API_KEY'))
+    def __init__(self, config):
+        # Check if config is a Config object or a dictionary
+        if hasattr(config, 'get_provider_config'):
+            # Config object
+            provider_config = config.get_provider_config('google')
+        else:
+            # Dictionary
+            provider_config = config
+            
+        # Initialize with the provider config
+        super().__init__(provider_config)
+        
+        # Configure Google API with the provider config
+        api_key = provider_config.get('api_key') or os.getenv('GOOGLE_API_KEY')
+        genai.configure(api_key=api_key)
 
     async def ask(self, message, system_prompt=None, include_sys_info=False, professional_mode=False):
         """Ask the LLM a question and get a response.
@@ -19,11 +31,18 @@ class GoogleProvider(LLMBase):
 
     async def generate_response(self, query: str, include_sys_info: bool = False, professional_mode: bool = False) -> str:
         try:
-            model = genai.GenerativeModel(self.config['model'])
-            response = model.generate_content([
-                {"role": "system", "content": self.get_system_context(include_sys_info, professional_mode)},
-                {"role": "user", "content": query}
-            ])
+            model_name = self.config.get('model', 'gemini-pro')
+            model = genai.GenerativeModel(model_name)
+            
+            # Get system context
+            system_context = self.get_system_context(include_sys_info, professional_mode)
+            
+            # Create content with proper format
+            response = model.generate_content(
+                contents=[
+                    {"role": "user", "parts": [{"text": f"System: {system_context}\n\nUser: {query}"}]}
+                ]
+            )
             return response.text
         except Exception as e:
             return f"Google Error: {str(e)}"

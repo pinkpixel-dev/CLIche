@@ -4,6 +4,7 @@ Command registry for CLIche CLI tool
 from .ansi import ansi
 from .art import art
 from .ask import ask
+from .chat import chat
 from .code import code
 from .create import create
 from .image import image
@@ -17,7 +18,6 @@ from .system import system
 from .view import view
 from .write import write
 from .research import research
-from .draw import draw
 from .remember import remember
 from .forget import forget
 
@@ -29,6 +29,7 @@ def register_commands(cli):
     cli.add_command(ansi)
     cli.add_command(art)
     cli.add_command(ask)
+    cli.add_command(chat)
     cli.add_command(code)
     cli.add_command(config)
     cli.add_command(create)
@@ -46,4 +47,3 @@ def register_commands(cli):
     cli.add_command(view)
     cli.add_command(write)
     cli.add_command(research)
-    cli.add_command(draw)

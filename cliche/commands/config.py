@@ -165,6 +165,17 @@ def config(provider: Optional[str], api_key: Optional[str], model: Optional[str]
             config.config['memory']['embedding']['model'] = 'text-embedding-3-small'
             config.config['memory']['embedding']['dimensions'] = 1536
             click.echo("🧠 Memory embedding model set to OpenAI (text-embedding-3-small)")
+        elif provider == 'anthropic':
+            # Set basic embedding configuration for Anthropic provider
+            if "memory" not in config.config:
+                config.config["memory"] = {}
+            if "embedding" not in config.config["memory"]:
+                config.config["memory"]["embedding"] = {}
+            
+            config.config['memory']['embedding']['provider'] = 'anthropic'
+            config.config['memory']['embedding']['dimensions'] = 1536
+            
+            click.echo("🧠 Memory system configured for Anthropic")
     elif model or api_key:
         # If no provider specified, use active provider
         active_provider = config.config['provider']

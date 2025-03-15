@@ -61,6 +61,8 @@ Example configuration:
 }
 ```
 
+> **Note:** If you're using Anthropic as your provider, the memory system uses Voyage AI for embeddings. You'll need to set the `VOYAGE_API_KEY` environment variable or configure it using `cliche memory set-voyage-key YOUR_API_KEY` to enable this feature. Get a key at https://docs.voyageai.com/
+
 ## Usage
 
 ### Basic Chat
@@ -93,6 +95,12 @@ Recall memories:
 
 ```bash
 cliche memory recall "Python dictionaries"
+```
+
+Fix database issues:
+
+```bash
+cliche memory repair
 ```
 
 Ask a question with memory context:
@@ -183,6 +191,12 @@ cliche memory retention --max 100
 
 # Reset to keep all memories indefinitely
 cliche memory retention --reset
+```
+
+9. Repair the database if issues occur
+```bash
+# Fix database issues, especially for search functionality
+cliche memory repair
 ```
 
 For complete documentation on the memory system, see [Memory System Documentation](docs/memory/README.md).

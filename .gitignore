@@ -1,5 +1,8 @@
 # Python
 __pycache__/
+cliche/__pycache__/
+*/__pycache__/
+**/__pycache__/
 *.py[cod]
 *$py.class
 *.so
@@ -25,6 +28,7 @@ tests/
 # Virtual Environment
 venv/
 bypass_env/
+cliche_venv/
 
 # IDE
 .idea/
@@ -32,6 +36,8 @@ bypass_env/
 *.swp
 *.swo
 cliche.code-workspace
+.cursor/
+.cursor
 
 # Environment
 cliche-bypass
@@ -39,6 +45,7 @@ setup_env.sh
 run.sh
 run_cliche.sh
 run_python.sh
+.env
 
 # Misc
 .DS_Store
@@ -50,3 +57,9 @@ MEMORIES.md
 CLICHE_PLAN.md
 BYPASS_README.md
 cliche.stable.1.2.0.2-25-25.130pm.tar.gz
+memory/
+
+# Temporary and backup files
+=*
+backup_*
+_mem*

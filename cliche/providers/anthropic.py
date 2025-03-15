@@ -7,9 +7,25 @@ import anthropic
 from .base import LLMBase
 
 class AnthropicProvider(LLMBase):
-    def __init__(self, config: Dict):
-        super().__init__(config)
-        self.client = anthropic.Anthropic(api_key=config.get('api_key') or os.getenv('ANTHROPIC_API_KEY'))
+    def __init__(self, config):
+        # Check if config is a Config object or a dictionary
+        if hasattr(config, 'get_provider_config'):
+            # Config object
+            provider_config = config.get_provider_config('anthropic')
+        else:
+            # Dictionary
+            provider_config = config
+            
+        # Initialize with the provider config
+        super().__init__(provider_config)
+        
+        # Initialize Anthropic client
+        api_key = provider_config.get('api_key') or os.getenv('ANTHROPIC_API_KEY')
+        self.client = anthropic.Anthropic(api_key=api_key)
+        
+        # Set default model if not specified
+        if 'model' not in self.config:
+            self.config['model'] = 'claude-3-opus-20240229'
 
     async def ask(self, message, system_prompt=None, include_sys_info=False, professional_mode=False):
         """Ask the LLM a question and get a response.

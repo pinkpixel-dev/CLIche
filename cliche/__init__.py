@@ -16,7 +16,6 @@ from .commands.config_manager_cmd import config_manager_cmd
 from .commands.research import research
 from .commands.search import search
 from .commands.create import create
-from .commands.draw import draw
 from .commands.memory import memory
 
 # Initialize config management on import
@@ -38,7 +37,6 @@ cli.add_command(config_manager_cmd)
 cli.add_command(research)
 cli.add_command(search)
 cli.add_command(create)
-cli.add_command(draw)
 cli.add_command(memory)
 
 __version__ = "0.1.0"

@@ -241,7 +241,7 @@ This allows you to:
 - Keep a history of your research
 - Avoid accidentally overwriting previous work
 
-All generated documents are stored in the `~/.cliche/files/docs/research/` directory for easy organization and access.
+All generated documents are stored in the `~/cliche/files/docs/research/` directory for easy organization and access.
 
 Example:
 ```bash

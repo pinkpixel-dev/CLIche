@@ -62,7 +62,7 @@ async def async_code(prompt: tuple[str, ...], lang: str, path: Optional[str]):
         # Create a filename from the first few words of the prompt
         words = full_prompt.lower().split()[:3]
         filename = '_'.join(words) + ext
-        # Use the .cliche/files/code directory
+        # Use the ~/cliche/files/code directory
         output_dir = get_output_dir('code')
         path = str(output_dir / filename)
     elif os.path.isdir(path):

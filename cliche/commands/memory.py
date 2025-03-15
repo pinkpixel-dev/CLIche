@@ -41,18 +41,6 @@ def status():
     provider = status_info.get("provider", "None")
     click.echo(f"Provider: {click.style(provider, fg='blue')}")
     
-    # Embedding model information
-    embedding_model = status_info.get("embedding_model", "Not set")
-    if embedding_model:
-        embedding_dimensions = status_info.get("embedding_dimensions", "Unknown")
-        click.echo(f"Embedding model: {click.style(embedding_model, fg='blue')} ({embedding_dimensions} dimensions)")
-    else:
-        click.echo(f"Embedding model: {click.style('Not set', fg='yellow')}")
-    
-    # Collection information
-    collection = status_info.get("collection", "None")
-    click.echo(f"Collection: {click.style(collection, fg='blue')}")
-    
     # Memory count if available
     memory_count = status_info.get("memory_count", "Unknown")
     click.echo(f"Memory count: {click.style(str(memory_count), fg='blue')}")
@@ -76,12 +64,11 @@ def status():
     click.echo("─" * 40)
     click.echo("Commands:")
     click.echo(" - Toggle auto-memory: " + click.style("cliche memory automemory on/off", fg="cyan"))
-    click.echo(" - Set embedding model: " + click.style("cliche memory set-model <model>", fg="cyan"))
-    click.echo(" - Install embedding model: " + click.style("cliche memory install <model>", fg="cyan"))
     click.echo(" - Set retention policy: " + click.style("cliche memory retention --days <days> --max <count>", fg="cyan"))
     click.echo(" - Store memory: " + click.style("cliche remember 'your memory'", fg="cyan"))
     click.echo(" - Recall memory: " + click.style("cliche memory recall 'search query'", fg="cyan"))
     click.echo(" - Forget memory: " + click.style("cliche forget 'search query'", fg="cyan"))
+    click.echo(" - Repair database: " + click.style("cliche memory repair", fg="cyan"))
 
 @memory.command()
 @click.argument('state', type=click.Choice(['on', 'off']), required=False)
@@ -200,13 +187,21 @@ def recall(query, limit, semantic, as_json):
 @memory.command()
 @click.argument('term', nargs=-1)
 def forget(term):
-    """Remove a memory (alias for 'forget' command)."""
-    # Get the forget command from commands
-    from .forget import forget as forget_cmd
-    ctx = click.Context(forget_cmd, info_name='forget')
+    """Remove a memory by ID or search terms.
     
-    # Call the forget command
-    return forget_cmd.invoke(ctx, term)
+    This is an alias for the 'forget' command. For more options like removing all memories,
+    use 'cliche forget --all' directly.
+    """
+    # Convert term to a string
+    term_str = " ".join(term)
+    if not term_str:
+        click.echo(click.style("Please provide a memory ID or search terms to forget", fg="yellow"))
+        return
+        
+    # Call the direct forget command
+    from .forget import forget as forget_cmd
+    # Call with the appropriate arguments (term as content, no --id, no --all, no --confirm)
+    forget_cmd.callback(content=term, id=None, all=False, confirm=False)
 
 @memory.command()
 @click.argument('user_id', required=False)
@@ -229,159 +224,6 @@ def user(user_id):
             click.echo(click.style(f"❌ Failed to set user ID", fg="red"))
     except Exception as e:
         click.echo(click.style(f"❌ Error setting user ID: {str(e)}", fg="red"))
-
-@memory.command()
-@click.argument('model', type=click.Choice(['nomic-embed-text:latest', 'mxbai-embed-large:latest']), required=False)
-def install(model):
-    """Install an embedding model for Ollama.
-    
-    This is a simple wrapper around 'ollama pull' for embedding models.
-    
-    Available Ollama embedding models:
-    - nomic-embed-text:latest (smaller, 274MB)
-    - mxbai-embed-large:latest (larger, 669MB)
-    """
-    # If no model specified, show available models
-    if not model:
-        click.echo(click.style("Available Ollama embedding models:", fg="blue"))
-        click.echo("─" * 40)
-        click.echo("• nomic-embed-text:latest (smaller, 274MB)")
-        click.echo("  - Good for most use cases")
-        click.echo("  - Fast inference speed")
-        click.echo("  - Lower memory usage")
-        click.echo("\n• mxbai-embed-large:latest (larger, 669MB)")
-        click.echo("  - Better quality embeddings")
-        click.echo("  - Good for nuanced semantic searches")
-        click.echo("  - Higher memory usage")
-        click.echo("─" * 40)
-        click.echo("Install with: " + click.style("cliche memory install MODEL_NAME", fg="cyan"))
-        return
-    
-    # Direct call to ollama pull to preserve progress display
-    try:
-        click.echo(click.style(f"Downloading model: {model}", fg="blue"))
-        
-        import subprocess
-        import os
-        
-        # Direct pass-through to preserve progress display
-        return_code = subprocess.call(['ollama', 'pull', model])
-        
-        if return_code == 0:
-            click.echo(click.style(f"\n✅ Model {model} installed successfully!", fg="green"))
-        else:
-            click.echo(click.style(f"\n❌ Failed to install model {model}", fg="red"))
-            click.echo("Make sure Ollama is installed and running.")
-    
-    except FileNotFoundError:
-        click.echo(click.style("❌ Ollama command not found.", fg="red"))
-        click.echo("Please make sure Ollama is installed and in your PATH.")
-        click.echo("Installation instructions: https://ollama.com/download")
-    
-    except Exception as e:
-        click.echo(click.style(f"❌ Error: {str(e)}", fg="red"))
-
-@memory.command(name="set-model")
-@click.argument('model', required=False)
-@click.option('--provider', '-p', help='Provider to use for embeddings (default: current provider)')
-def set_model(model, provider):
-    """Set the embedding model for memory.
-    
-    This command sets the embedding model to be used for memory operations.
-    Different providers have different available models with varying capabilities.
-    
-    Example usage:
-      - For Ollama: cliche memory set-model nomic-embed-text:latest
-      - For OpenAI: cliche memory set-model text-embedding-3-small
-    """
-    assistant = get_cliche_instance()
-    
-    if not model:
-        # Show current model
-        status_info = assistant.memory.get_status()
-        current_model = status_info.get("embedding_model", "Not set")
-        current_provider = status_info.get("provider", "unknown")
-        
-        click.echo(f"Current embedding model: {click.style(current_model, fg='blue')}")
-        click.echo(f"Current provider: {click.style(current_provider, fg='blue')}")
-        
-        click.echo("\nAvailable models by provider:")
-        
-        # Show Ollama models
-        click.echo(click.style("\nOllama models:", fg="cyan", bold=True))
-        click.echo("• nomic-embed-text:latest (768 dimensions) - Smaller, faster")
-        click.echo("• mxbai-embed-large:latest (1024 dimensions) - Larger, higher quality")
-        
-        # Show OpenAI models
-        click.echo(click.style("\nOpenAI models:", fg="cyan", bold=True))
-        click.echo("• text-embedding-3-small (1536 dimensions) - Recommended, efficient")
-        click.echo("• text-embedding-3-large (3072 dimensions) - Higher quality, more expensive")
-        click.echo("• text-embedding-ada-002 (1536 dimensions) - Legacy model")
-        
-        # Show Anthropic models
-        click.echo(click.style("\nAnthropic models:", fg="cyan", bold=True))
-        click.echo("• claude-3-embedding (~3072 dimensions) - High quality")
-        
-        # Show Google/Vertex AI models
-        click.echo(click.style("\nGoogle/Vertex AI models:", fg="cyan", bold=True))
-        click.echo("• textembedding-gecko (768 dimensions)")
-        click.echo("• text-embedding-004 (768 dimensions) - Gemini model")
-        
-        return
-    
-    # If provider not specified, use current one
-    if not provider:
-        provider = assistant.memory.provider_name
-    
-    try:
-        # Get current memory config
-        memory_config = assistant.config.config.get("memory", {})
-        
-        # Update with provider-specific embedding settings
-        if "embedding" not in memory_config:
-            memory_config["embedding"] = {}
-        
-        memory_config["embedding"]["provider"] = provider
-        memory_config["embedding"]["model"] = model
-        
-        # Set dimensions based on model
-        dimensions = 768  # Default
-        if "3-small" in model or "ada-002" in model:
-            dimensions = 1536
-        elif "3-large" in model:
-            dimensions = 3072
-        elif "mxbai" in model:
-            dimensions = 1024
-        
-        memory_config["embedding"]["dimensions"] = dimensions
-        
-        # Also update the provider-specific configuration if using Ollama
-        if provider == "ollama":
-            # Get Ollama provider config
-            providers_config = assistant.config.config.get("providers", {})
-            if "ollama" not in providers_config:
-                providers_config["ollama"] = {}
-            
-            # Set embedding model in Ollama config
-            providers_config["ollama"]["embedding_model"] = model
-            assistant.config.config["providers"] = providers_config
-            click.echo(click.style("Updated Ollama provider configuration with embedding model", fg="blue"))
-        
-        # Update config
-        assistant.config.config["memory"] = memory_config
-        
-        # Save config
-        success = assistant.config.save_config(assistant.config.config)
-        
-        if success:
-            click.echo(click.style(f"✅ Embedding model set to: {model} ({dimensions} dimensions)", fg="green"))
-            click.echo(click.style("Changes will be applied automatically for new memory operations.", fg="cyan"))
-            click.echo(click.style("For Ollama models, make sure the model is installed with: cliche memory install MODEL_NAME", fg="cyan"))
-        else:
-            click.echo(click.style("❌ Failed to save config", fg="red"))
-    
-    except Exception as e:
-        click.echo(click.style(f"❌ Error setting embedding model: {str(e)}", fg="red"))
 
 @memory.command()
 @click.option('--days', type=int, help='Number of days to retain memories (0 = keep forever)')
@@ -411,15 +253,23 @@ def retention(days, max, reset):
         current_days = 0
         current_max = 0
         
-        # Save updated config
-        assistant.config.config["memory"] = memory_config
-        success = assistant.config.save_config(assistant.config.config)
+        # Update memory object's retention settings directly
+        assistant.memory.retention_days = 0
+        assistant.memory.max_memories = 0
         
-        if success:
-            click.echo(click.style("✅ Memory retention settings reset to keep all memories indefinitely", fg="green"))
-            return
-        else:
-            click.echo(click.style("❌ Failed to reset memory retention settings", fg="red"))
+        # Save updated config
+        try:
+            assistant.config.config["memory"] = memory_config
+            success = assistant.config.save_config(assistant.config.config)
+            
+            if success:
+                click.echo(click.style("✅ Memory retention settings reset to keep all memories indefinitely", fg="green"))
+                return
+            else:
+                click.echo(click.style("❌ Failed to reset memory retention settings", fg="red"))
+                return
+        except Exception as e:
+            click.echo(click.style(f"❌ Error while saving config: {str(e)}", fg="red"))
             return
     
     # If no options specified, show current settings
@@ -438,3 +288,61 @@ def retention(days, max, reset):
         click.echo(" - Keep only latest 100 memories: " + click.style("cliche memory retention --max 100", fg="green"))
         click.echo(" - Reset to keep all memories indefinitely: " + click.style("cliche memory retention --reset", fg="green"))
         return 
+
+    # Update retention settings
+    updated = False
+    if days is not None:
+        memory_config["retention_days"] = days
+        assistant.memory.retention_days = days
+        updated = True
+    
+    if max is not None:
+        memory_config["max_memories"] = max
+        assistant.memory.max_memories = max
+        updated = True
+    
+    if updated:
+        # Save updated config
+        assistant.config.config["memory"] = memory_config
+        success = assistant.config.save_config(assistant.config.config)
+        
+        if success:
+            # Format for display
+            days_str = "indefinitely (no time limit)" if memory_config["retention_days"] == 0 else f"{memory_config['retention_days']} days"
+            max_str = "all memories (no limit)" if memory_config["max_memories"] == 0 else f"maximum {memory_config['max_memories']} memories"
+            
+            click.echo(click.style("✅ Memory retention settings updated:", fg="green"))
+            click.echo(f"Retention period: {click.style(days_str, fg='cyan')}")
+            click.echo(f"Maximum memories: {click.style(max_str, fg='cyan')}")
+        else:
+            click.echo(click.style("❌ Failed to update memory retention settings", fg="red"))
+    else:
+        click.echo(click.style("No changes made to retention settings", fg="yellow"))
+
+@memory.command()
+@click.option('--confirm', '-y', is_flag=True, help='Skip confirmation')
+def repair(confirm):
+    """Repair the memory database.
+    
+    This command fixes database problems, especially 'database disk image is malformed' errors
+    that may occur with the search functionality. It rebuilds the full-text search index.
+    """
+    assistant = get_cliche_instance()
+    
+    if not confirm:
+        click.echo(click.style("⚠️ This will rebuild the memory search index.", fg="yellow"))
+        click.echo("Your memories will be preserved, but this operation may take some time.")
+        if not click.confirm("Do you want to continue?"):
+            click.echo("Operation cancelled.")
+            return
+    
+    click.echo("Repairing memory database...")
+    
+    try:
+        success = assistant.memory.repair_database()
+        if success:
+            click.echo(click.style("✅ Memory database repaired successfully!", fg="green"))
+        else:
+            click.echo(click.style("❌ Failed to repair memory database.", fg="red"))
+    except Exception as e:
+        click.echo(click.style(f"❌ Error: {str(e)}", fg="red")) 

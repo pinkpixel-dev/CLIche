@@ -7,10 +7,21 @@ import requests
 from .base import LLMBase
 
 class OpenRouterProvider(LLMBase):
-    def __init__(self, config: Dict):
-        super().__init__(config)
-        self.api_key = config.get('api_key') or os.getenv('OPENROUTER_API_KEY')
-        self.api_base = "https://openrouter.ai/api/v1"
+    def __init__(self, config):
+        # Check if config is a Config object or a dictionary
+        if hasattr(config, 'get_provider_config'):
+            # Config object
+            provider_config = config.get_provider_config('openrouter')
+        else:
+            # Dictionary
+            provider_config = config
+            
+        # Initialize with the provider config
+        super().__init__(provider_config)
+        
+        # Get API key
+        self.api_key = provider_config.get('api_key') or os.getenv('OPENROUTER_API_KEY')
+        self.base_url = provider_config.get('base_url', 'https://openrouter.ai/api/v1')
 
     async def ask(self, message, system_prompt=None, include_sys_info=False, professional_mode=False):
         """Ask the LLM a question and get a response.
@@ -21,7 +32,7 @@ class OpenRouterProvider(LLMBase):
     async def generate_response(self, query: str, include_sys_info: bool = False, professional_mode: bool = False) -> str:
         try:
             response = requests.post(
-                f"{self.api_base}/chat/completions",
+                f"{self.base_url}/chat/completions",
                 headers={
                     "Authorization": f"Bearer {self.api_key}",
                     "HTTP-Referer": "https://github.com/sizzlebop/cliche",  # Required by OpenRouter

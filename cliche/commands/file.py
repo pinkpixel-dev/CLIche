@@ -377,8 +377,8 @@ The generated response should be a complete, valid HTML document with DOCTYPE, h
             return
         
     if not path:
-        # Save files to ~/.cliche/files/[type]
-        cliche_dir = Path.home() / '.cliche' / 'files' / type
+        # Save files to ~/cliche/files/[type]
+        cliche_dir = Path.home() / 'cliche' / 'files' / type
         cliche_dir.mkdir(parents=True, exist_ok=True)
         
         # Generate a default filename based on content type
